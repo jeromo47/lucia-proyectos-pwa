@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+html, body, #root {
+  height: 100%;
+  background: #fff;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+.section-card {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: .8px solid rgba(128, 128, 128, .15);
+}
+
+.day-today {
+  border: 1.5px solid #000;
+}
+
+.day-overlap {
+  border: 1px solid rgba(0, 0, 0, .25);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
