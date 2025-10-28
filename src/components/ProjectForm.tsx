@@ -1,144 +1,179 @@
-import { useEffect, useState } from 'react';
-import type { Project } from '@/lib/types';
-import { listProjects, upsertProject, db } from '@/lib/db';
-import { findOverlap } from '@/lib/overlap';
-import { todayISO } from '@/lib/date';
-import { v4 as uuidv4 } from 'uuid';
-import { upsertCalendarEvent } from '@/lib/google';
+import React, { useState, useEffect } from 'react';
+import { fmt, parseDate } from '@/lib/date';
+import { Project } from '@/lib/db';
+import { saveProject, getProjects } from '@/lib/db';
 
-const CAL_ID = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
+interface Props {
+  editing?: Project;
+  onClose: () => void;
+  onSaved: () => void;
+}
 
-export default function ProjectForm({
-  initial,
-  onSaved,
-  googleSync
-}: {
-  initial?: Project;
-  onSaved: (p: Project) => void;
-  googleSync?: boolean;
-}) {
-  const [title, setTitle] = useState(initial?.title ?? '');
-  const [desc, setDesc] = useState(initial?.desc ?? '');
-  const [notes, setNotes] = useState(initial?.notes ?? '');
-  const [start, setStart] = useState(initial?.startDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-  const [end, setEnd] = useState(initial?.endDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-  const [contractBudget, setCB] = useState<string>(initial?.contractBudget?.toString() ?? '');
-  const [finalBudget, setFB] = useState<string>(initial?.finalBudget?.toString() ?? '');
+export default function ProjectForm({ editing, onClose, onSaved }: Props) {
+  const [title, setTitle] = useState(editing?.title || '');
+  const [desc, setDesc] = useState(editing?.desc || '');
+  const [notes, setNotes] = useState(editing?.notes || '');
+  const [start, setStart] = useState(editing ? fmt(editing.startDate, 'yyyy-MM-dd') : '');
+  const [end, setEnd] = useState(editing ? fmt(editing.endDate, 'yyyy-MM-dd') : '');
+  const [contractBudget, setContractBudget] = useState(editing?.contractBudget || '');
+  const [finalBudget, setFinalBudget] = useState(editing?.finalBudget || '');
   const [overlapWarn, setOverlapWarn] = useState<Project | null>(null);
 
-  const [customDefs, setCustomDefs] = useState<{ id: string; name: string }[]>([]);
-  const [customs, setCustoms] = useState<Record<string, string>>({}); // name -> value
-
-  useEffect(() => { db.fieldDefs.toArray().then(setCustomDefs); }, []);
+  // --- Detectar solapes de fechas ---
   useEffect(() => {
-    (async () => {
-      if (!initial) return;
-      const vals = await db.customValues.where({ projectId: initial.id }).toArray();
-      const map: Record<string, string> = {};
-      vals.forEach(v => (map[v.fieldName] = v.value));
-      setCustoms(map);
-    })();
-  }, [initial?.id]);
+    async function checkOverlap() {
+      if (!start || !end) return setOverlapWarn(null);
+      const all = await getProjects();
+      const s = parseDate(start);
+      const e = parseDate(end);
 
-  useEffect(() => {
-    (async () => {
-      const all = await listProjects();
-      const draft: Project = {
-        id: initial?.id ?? 'temp',
-        title,
-        desc,
-        notes,
-        startDate: new Date(start).toISOString(),
-        endDate: new Date(end).toISOString(),
-        contractBudget: contractBudget ? Number(contractBudget) : undefined,
-        finalBudget: finalBudget ? Number(finalBudget) : undefined,
-        createdAt: initial?.createdAt ?? todayISO(),
-        updatedAt: todayISO(),
-        calendarEventId: initial?.calendarEventId ?? null
-      };
-      const o = findOverlap(draft, all);
-      setOverlapWarn(o || null);
-    })();
-  }, [title, desc, notes, start, end, contractBudget, finalBudget, initial?.id, initial?.createdAt, initial?.calendarEventId]);
+      const overlap = all.find(
+        p =>
+          p.id !== editing?.id &&
+          ((s >= p.startDate && s <= p.endDate) ||
+            (e >= p.startDate && e <= p.endDate) ||
+            (s <= p.startDate && e >= p.endDate))
+      );
+      setOverlapWarn(overlap || null);
+    }
+    checkOverlap();
+  }, [start, end, editing]);
 
-  const valid = title.trim().length > 0 && start <= end;
-
-  const save = async () => {
-    if (!valid) return;
-    const now = todayISO();
+  // --- Guardar proyecto ---
+  const handleSave = async () => {
+    if (!title.trim()) return alert('El nombre es obligatorio');
+    if (start > end) return alert('La fecha fin debe ser mayor o igual que la de inicio');
     const project: Project = {
-      id: initial?.id ?? uuidv4(),
-      title,
-      desc,
-      notes,
-      startDate: new Date(start).toISOString(),
-      endDate: new Date(end).toISOString(),
-      contractBudget: contractBudget ? Number(contractBudget) : undefined,
-      finalBudget: finalBudget ? Number(finalBudget) : undefined,
-      createdAt: initial?.createdAt ?? now,
-      updatedAt: now,
-      calendarEventId: initial?.calendarEventId ?? null
+      id: editing?.id || crypto.randomUUID(),
+      title: title.trim(),
+      desc: desc.trim(),
+      notes: notes.trim(),
+      startDate: parseDate(start),
+      endDate: parseDate(end),
+      contractBudget: Number(contractBudget) || undefined,
+      finalBudget: Number(finalBudget) || undefined,
+      createdAt: editing?.createdAt || new Date(),
+      updatedAt: new Date(),
     };
-    if (googleSync) {
-      const id = await upsertCalendarEvent(CAL_ID, {
-        id: project.calendarEventId,
-        title: project.title,
-        desc: project.desc,
-        startISO: project.startDate,
-        endISO: project.endDate
-      }).catch(() => null);
-      project.calendarEventId = id;
-    }
-    await upsertProject(project);
-    await db.customValues.where({ projectId: project.id }).delete();
-    for (const [fieldName, value] of Object.entries(customs)) {
-      if (value?.trim()) await db.customValues.add({ id: uuidv4(), projectId: project.id, fieldName, value });
-    }
-    onSaved(project);
+    await saveProject(project);
+    onSaved();
   };
 
   return (
-    <div className="space-y-4">
-      <div className="section-card p-4">
-        <div className="text-xs uppercase text-gray-500 mb-2">Proyecto</div>
-        <input className="w-full border rounded-lg px-3 py-2" placeholder="Nombre" value={title} onChange={e => setTitle(e.target.value)} />
-        <textarea className="w-full mt-2 border rounded-lg px-3 py-2" placeholder="Descripción" value={desc} onChange={e => setDesc(e.target.value)} />
-        <textarea className="w-full mt-2 border rounded-lg px-3 py-2" placeholder="Notas" value={notes} onChange={e => setNotes(e.target.value)} />
-      </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-lg relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 text-lg"
+        >
+          ✕
+        </button>
 
-      <div className="section-card p-4">
-        <div className="text-xs uppercase text-gray-500 mb-2">Fechas</div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">Inicio<input type="date" className="w-full border rounded-lg px-3 py-2" value={start} onChange={e => setStart(e.target.value)} /></label>
-          <label className="text-sm">Fin<input type="date" className="w-full border rounded-lg px-3 py-2" value={end} onChange={e => setEnd(e.target.value)} /></label>
-        </div>
-        {start > end && <div className="text-red-600 text-sm mt-2">La fecha fin debe ser ≥ inicio.</div>}
-        {overlapWarn && <div className="text-amber-600 text-sm mt-2">Aviso: solape con “{overlapWarn.title}”.</div>}
-      </div>
+        <h2 className="text-lg font-semibold mb-4 uppercase tracking-wide text-center">
+          {editing ? 'Editar proyecto' : 'Nuevo proyecto'}
+        </h2>
 
-      <div className="section-card p-4">
-        <div className="text-xs uppercase text-gray-500 mb-2">Presupuestos</div>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">Contrato (€)<input inputMode="decimal" className="w-full border rounded-lg px-3 py-2" value={contractBudget} onChange={e => setCB(e.target.value)} /></label>
-          <label className="text-sm">Final (€)<input inputMode="decimal" className="w-full border rounded-lg px-3 py-2" value={finalBudget} onChange={e => setFB(e.target.value)} /></label>
-        </div>
-      </div>
+        {/* Nombre, descripción y notas */}
+        <div className="space-y-4">
+          <div className="section-card p-4">
+            <div className="text-xs uppercase text-gray-500 mb-2">Proyecto</div>
+            <input
+              className="w-full border rounded-lg px-3 py-2 mb-2"
+              placeholder="Nombre"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <textarea
+              className="w-full border rounded-lg px-3 py-2 mb-2 resize-none"
+              placeholder="Descripción"
+              rows={2}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
+            <textarea
+              className="w-full border rounded-lg px-3 py-2 resize-none"
+              placeholder="Notas"
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
 
-      {customDefs.length > 0 && (
-        <div className="section-card p-4">
-          <div className="text-xs uppercase text-gray-500 mb-2">Campos personalizados</div>
-          <div className="space-y-2">
-            {customDefs.map(d => (
-              <label key={d.id} className="block text-sm">
-                {d.name}
-                <input className="w-full border rounded-lg px-3 py-2 mt-1" value={customs[d.name] || ''} onChange={e => setCustoms(m => ({ ...m, [d.name]: e.target.value }))} />
+          {/* Fechas */}
+          <div className="section-card p-4">
+            <div className="text-xs uppercase text-gray-500 mb-2">Fechas</div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="text-sm block">
+                Inicio
+                <input
+                  type="date"
+                  className="w-full mt-1 border rounded-lg px-3 py-2.5 bg-white appearance-none"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                />
               </label>
-            ))}
+
+              <label className="text-sm block">
+                Fin
+                <input
+                  type="date"
+                  className="w-full mt-1 border rounded-lg px-3 py-2.5 bg-white appearance-none"
+                  value={end}
+                  min={start}
+                  onChange={(e) => setEnd(e.target.value)}
+                />
+              </label>
+            </div>
+
+            {start > end && (
+              <div className="text-red-600 text-sm mt-2">
+                La fecha fin debe ser ≥ inicio.
+              </div>
+            )}
+
+            {overlapWarn && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm px-3 py-2">
+                Solape con “{overlapWarn.title}”
+                {' '}({fmt(overlapWarn.startDate)} — {fmt(overlapWarn.endDate)}).
+              </div>
+            )}
+          </div>
+
+          {/* Presupuestos */}
+          <div className="section-card p-4">
+            <div className="text-xs uppercase text-gray-500 mb-2">Presupuestos</div>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="text-sm block">
+                Contrato (€)
+                <input
+                  type="number"
+                  className="w-full mt-1 border rounded-lg px-3 py-2"
+                  value={contractBudget}
+                  onChange={(e) => setContractBudget(e.target.value)}
+                />
+              </label>
+              <label className="text-sm block">
+                Final (€)
+                <input
+                  type="number"
+                  className="w-full mt-1 border rounded-lg px-3 py-2"
+                  value={finalBudget}
+                  onChange={(e) => setFinalBudget(e.target.value)}
+                />
+              </label>
+            </div>
           </div>
         </div>
-      )}
 
-      <button disabled={!valid} onClick={save} className="w-full py-3 rounded-xl bg-black text-white disabled:opacity-40">Guardar</button>
+        {/* Botón guardar */}
+        <button
+          onClick={handleSave}
+          className="w-full mt-6 bg-black text-white py-3 rounded-lg text-base font-semibold"
+        >
+          Guardar
+        </button>
+      </div>
     </div>
   );
 }
