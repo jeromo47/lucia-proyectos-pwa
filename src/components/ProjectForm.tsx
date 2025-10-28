@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fmt, parseDate } from '@/lib/date';
-import { Project } from '@/lib/db';
-import { saveProject, getProjects } from '@/lib/db';
+import { db } from '@/lib/db';
+import type { Project } from '@/lib/types';
 
 interface Props {
   editing?: Project;
@@ -23,7 +23,7 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
   useEffect(() => {
     async function checkOverlap() {
       if (!start || !end) return setOverlapWarn(null);
-      const all = await getProjects();
+      const all = await db.projects.toArray();
       const s = parseDate(start);
       const e = parseDate(end);
 
@@ -55,7 +55,7 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
       createdAt: editing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
-    await saveProject(project);
+    await db.projects.put(project);
     onSaved();
   };
 
