@@ -17,7 +17,7 @@ export default function HeaderBar({ onMenu }: { onMenu?: () => void }) {
         <img
           src="/icons/LogotipoHeader.png"
           alt="Lucía Proyectos"
-          className="h-6 object-contain"
+          className="h-8 sm:h-9 object-contain"
           draggable={false}
         />
       </button>
