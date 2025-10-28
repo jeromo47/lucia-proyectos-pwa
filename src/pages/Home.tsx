@@ -137,9 +137,9 @@ export default function Home() {
       {/* FAB */}
       <button
         onClick={() => { setEditing(undefined); setOpenForm(true); }}
-        className="fixed bottom-[calc(16px+var(--safe-b))] right-4 h-12 w-12 rounded-full bg-black text-white text-2xl leading-[48px] shadow-xl"
+        className="fixed bottom-[calc(24px+var(--safe-b))] left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-black text-white text-3xl leading-[56px] shadow-xl transition active:scale-95"
         aria-label="Añadir proyecto"
-        title="Añadir proyecto"
+        title="Añadir proyecto"  
       >
         +
       </button>
