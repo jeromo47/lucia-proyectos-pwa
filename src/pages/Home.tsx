@@ -12,6 +12,7 @@ import { isSignedIn, signIn, listEvents } from '@/lib/google';
 import ImportExportSheet from '@/components/ImportExportSheet';
 import RemindersSheet from '@/components/RemindersSheet';
 import { useNavigate } from 'react-router-dom';
+import ActionSheet, { type SheetAction } from '@/components/ActionSheet';
 
 const CAL_ID = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
 
@@ -25,6 +26,7 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openIE, setOpenIE] = useState(false);
   const [openRem, setOpenRem] = useState(false);
+  const [openMenu, setOpenMenu] = useState(false);
   const nav = useNavigate();
 
   const refresh = async () => setItems(await listProjects());
@@ -83,38 +85,37 @@ export default function Home() {
     refresh();
   };
 
+  const actions: SheetAction[] = [
+    { label: 'Importar / Exportar CSV', onClick: () => { setOpenMenu(false); setOpenIE(true); } },
+    { label: googleOn ? 'Google conectado' : 'Conectar Google', onClick: async () => { setOpenMenu(false); await signIn().catch(()=>{}); setGoogleOn(isSignedIn()); } },
+    { label: 'Sincronizar (Pull Google)', onClick: () => { setOpenMenu(false); pullFromGoogle(); } },
+    { label: 'Recordatorios', onClick: () => { setOpenMenu(false); setOpenRem(true); } },
+    { label: selectMode ? 'Salir de selección' : 'Selección múltiple', onClick: () => { setOpenMenu(false); setSelectMode(v=>!v); setSelected(new Set()); } },
+    { label: 'Ajustes', onClick: () => { setOpenMenu(false); nav('/settings'); } },
+  ];
+
   return (
     <div className="h-full flex flex-col">
-      <HeaderBar />
-      <div className="p-5 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      <HeaderBar onMenu={() => setOpenMenu(true)} />
+
+      <div className="p-5 space-y-5">
+        {/* Tabs centradas */}
+        <div className="flex justify-center">
           <Tabs value={tab} onChange={setTab} />
-          <div className="flex flex-wrap gap-2">
-            <button className="px-3 py-2 border rounded-lg" onClick={() => setOpenIE(true)}>Import/Export</button>
-            <button className="px-3 py-2 border rounded-lg" onClick={() => setOpenRem(true)}>Recordatorios</button>
-            <button className="px-3 py-2 border rounded-lg" onClick={async () => {
-              await signIn().catch(()=>{});
-              setGoogleOn(isSignedIn());
-            }}>{googleOn ? 'Google ON' : 'Conectar Google'}</button>
-            <button className="px-3 py-2 border rounded-lg" onClick={pullFromGoogle}>Pull Google</button>
-            <button className={`px-3 py-2 rounded-lg border ${selectMode ? 'bg-black text-white' : ''}`}
-              onClick={() => { setSelectMode(v => !v); setSelected(new Set()); }}>
-              {selectMode ? 'Seleccionar ON' : 'Seleccionar'}
-            </button>
-            <button className="px-3 py-2 bg-black text-white rounded-lg"
-              onClick={() => { setEditing(undefined); setOpenForm(true); }}>+ Añadir</button>
-          </div>
         </div>
 
+        {/* Barra de acciones cuando hay selección */}
         {selectMode && (
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">{selected.size} seleccionados</div>
+          <div className="sticky top-[56px] z-10 bg-white/90 backdrop-blur border rounded-xl px-3 py-2 flex items-center justify-between">
+            <div className="text-sm text-gray-700">{selected.size} seleccionados</div>
             <div className="flex gap-2">
-              <button className="px-3 py-2 rounded-lg border text-red-600" onClick={bulkDelete}>Eliminar</button>
+              <button className="px-3 py-1 rounded-lg border text-red-600" onClick={bulkDelete}>Eliminar</button>
+              <button className="px-3 py-1 rounded-lg border" onClick={() => { setSelectMode(false); setSelected(new Set()); }}>Cancelar</button>
             </div>
           </div>
         )}
 
+        {/* Lista */}
         <div className="space-y-3">
           {filtered.map(p => (
             <div key={p.id} className="relative flex items-start gap-3">
@@ -123,9 +124,9 @@ export default function Home() {
               )}
               <div className="flex-1">
                 <ProjectCard p={p} onClick={() => nav(`/project/${p.id}`)} />
-                <div className="absolute right-3 top-3 flex gap-2">
-                  <button className="text-sm underline" onClick={() => downloadICS(p)}>ICS</button>
-                  <button className="text-sm underline" onClick={() => { setEditing(p); setOpenForm(true); }}>Editar</button>
+                <div className="absolute right-3 top-3 flex gap-2 text-xs">
+                  <button className="underline" onClick={() => downloadICS(p)}>ICS</button>
+                  <button className="underline" onClick={() => { setEditing(p); setOpenForm(true); }}>Editar</button>
                 </div>
               </div>
             </div>
@@ -133,12 +134,23 @@ export default function Home() {
         </div>
       </div>
 
+      {/* FAB */}
+      <button
+        onClick={() => { setEditing(undefined); setOpenForm(true); }}
+        className="fixed bottom-[calc(16px+var(--safe-b))] right-4 h-12 w-12 rounded-full bg-black text-white text-2xl leading-[48px] shadow-xl"
+        aria-label="Añadir proyecto"
+        title="Añadir proyecto"
+      >
+        +
+      </button>
+
       <Modal open={openForm} onClose={() => setOpenForm(false)}>
         <ProjectForm initial={editing} onSaved={() => { setOpenForm(false); refresh(); }} googleSync={googleOn} />
       </Modal>
 
       <ImportExportSheet open={openIE} onClose={() => { setOpenIE(false); refresh(); }} />
       <RemindersSheet open={openRem} onClose={() => setOpenRem(false)} />
+      <ActionSheet open={openMenu} onClose={() => setOpenMenu(false)} actions={actions} />
     </div>
   );
 }
