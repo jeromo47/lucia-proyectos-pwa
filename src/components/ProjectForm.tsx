@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fmt, parseDate } from '@/lib/date';
+import { fmt } from '@/lib/date';
 import { db } from '@/lib/db';
 import type { Project } from '@/lib/types';
 
@@ -24,8 +24,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
     async function checkOverlap() {
       if (!start || !end) return setOverlapWarn(null);
       const all = await db.projects.toArray();
-      const s = parseDate(start);
-      const e = parseDate(end);
+      const s = Date(start);
+      const e = Date(end);
 
       const overlap = all.find(
         p =>
@@ -48,8 +48,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
       title: title.trim(),
       desc: desc.trim(),
       notes: notes.trim(),
-      startDate: parseDate(start),
-      endDate: parseDate(end),
+      startDate: Date(start),
+      endDate: Date(end),
       contractBudget: Number(contractBudget) || undefined,
       finalBudget: Number(finalBudget) || undefined,
       createdAt: editing?.createdAt || new Date(),
