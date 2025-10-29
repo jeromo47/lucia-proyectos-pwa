@@ -1,58 +1,40 @@
 // src/lib/google.ts
-// Stub seguro de Google Calendar: build-friendly cuando la integración está desactivada.
-// Exporta todas las funciones más comunes como no-ops para evitar errores de import.
+// Stub de Google Calendar: evita que el build falle cuando la integración está desactivada.
+// Exporta funciones "no-op" para cubrir cualquier import existente.
 
 const CALENDAR_ENABLED = import.meta.env.VITE_CALENDAR_ENABLED === 'true';
-
 export const isCalendarEnabled = CALENDAR_ENABLED;
 
-/** Inicializa el SDK si estuviera activado (aquí no hace nada). */
+// Utilidad no-op
+const warn = (fn: string) =>
+  console.warn(`[Google Calendar] ${fn}() llamado, pero la integración está desactivada.`);
+
+// Inicialización
 export async function initGoogle(): Promise<void> {
-  if (!CALENDAR_ENABLED) {
-    // No cargar nada cuando está desactivado
-    return;
-  }
-  // Si algún día reactivas Calendar, aquí iría la carga oficial del script:
-  // const script = document.createElement('script');
-  // script.src = 'https://apis.google.com/js/api.js';
-  // document.head.appendChild(script);
-  // await new Promise(res => (script.onload = res));
-  // await gapi.client.init(...);
+  if (!CALENDAR_ENABLED) return;
+  // Aquí iría la carga real del SDK si se reactivara en el futuro.
 }
 
-/** Estado de sesión con Google Calendar (stub: siempre false si desactivado). */
-export function isSignedIn(): boolean {
-  return false;
-}
+// Sesión
+export function isSignedIn(): boolean { return false; }
+export async function signIn(): Promise<void> { warn('signIn'); }
+export async function signOut(): Promise<void> { warn('signOut'); }
 
-/** Login con Google Calendar (stub: no hace nada). */
-export async function signIn(): Promise<void> {
-  console.warn('[Google Calendar] signIn() llamado, pero la integración está desactivada.');
-}
+// Lectura de calendarios/eventos
+export async function listCalendars(): Promise<any[]> { return []; }
+export async function listEvents(_args?: any): Promise<any[]> { return []; }
 
-/** Logout con Google Calendar (stub: no hace nada). */
-export async function signOut(): Promise<void> {
-  console.warn('[Google Calendar] signOut() llamado, pero la integración está desactivada.');
-}
+// CRUD de eventos (nombres múltiples para cubrir imports existentes)
+export async function createEvent(_e: any): Promise<null> { warn('createEvent'); return null; }
+export async function updateEvent(_id: string, _p: any): Promise<null> { warn('updateEvent'); return null; }
+export async function deleteEvent(_id: string): Promise<void> { warn('deleteEvent'); }
 
-/** Lista eventos del calendario (stub: devuelve lista vacía). */
-export async function listEvents(_args?: any): Promise<any[]> {
-  return [];
-}
+export async function createCalendarEvent(_e: any): Promise<null> { warn('createCalendarEvent'); return null; }
+export async function updateCalendarEvent(_id: string, _p: any): Promise<null> { warn('updateCalendarEvent'); return null; }
+export async function deleteCalendarEvent(_id: string): Promise<void> { warn('deleteCalendarEvent'); }
 
-/** Crea un evento (stub: no hace nada, devuelve null). */
-export async function createEvent(_event: any): Promise<null> {
-  console.warn('[Google Calendar] createEvent() llamado, pero la integración está desactivada.');
-  return null;
-}
-
-/** Actualiza un evento (stub). */
-export async function updateEvent(_id: string, _patch: any): Promise<null> {
-  console.warn('[Google Calendar] updateEvent() llamado, pero la integración está desactivada.');
-  return null;
-}
-
-/** Borra un evento (stub). */
-export async function deleteEvent(_id: string): Promise<void> {
-  console.warn('[Google Calendar] deleteEvent() llamado, pero la integración está desactivada.');
-}
+// Otros helpers habituales (por si existen en tu código)
+export async function ensureCalendar(_id?: string): Promise<null> { return null; }
+export async function ensureAuthorized(): Promise<boolean> { return false; }
+export async function addReminder(_e: any): Promise<void> { warn('addReminder'); }
+export async function removeReminder(_id: string): Promise<void> { warn('removeReminder'); }
