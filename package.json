@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
 "dependencies": {
+  "@supabase/supabase-js": "^2.45.0",
   "date-fns": "^4.1.0",
   "dexie": "^4.0.8",
   "file-saver": "^2.0.5",
   "ics": "^3.7.6",
-  "localforage": "^1.10.0",
   "papaparse": "^5.4.1",
   "react": "^18.3.1",
   "react-dom": "^18.3.1",
