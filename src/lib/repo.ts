@@ -1,10 +1,5 @@
-// src/lib/repo.ts
 import { supabase } from '@/lib/supabase'
 
-/**
- * Proyecto (modelo en app). Fechas en ISO string (YYYY-MM-DD) o null.
- * durationStart/durationEnd se calculan en UI a partir de prepStart/rodajeEnd.
- */
 export type Project = {
   id: string
   confirmed: boolean
@@ -17,14 +12,12 @@ export type Project = {
   budget: number | null
   teamBudget: number | null
   colorSeed: string | null
-
   rodajeStart: string
   rodajeEnd: string
   fittingStart: string | null
   fittingEnd: string | null
   prepStart: string | null
   prepEnd: string | null
-
   createdAt: string
   updatedAt: string
 }
@@ -32,7 +25,6 @@ export type Project = {
 type ProjectInsert = Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
 type ProjectUpdate = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt'>>
 
-/** Mapeo DB (snake_case) ↔ TS (camelCase) */
 function fromRow(r: any): Project {
   return {
     id: r.id,
@@ -82,7 +74,6 @@ export async function getProjects(): Promise<Project[]> {
   const { data, error } = await supabase
     .from('projects')
     .select('*')
-    .order('rodaje_start', { ascending: true })
   if (error) throw error
   return (data ?? []).map(fromRow)
 }
@@ -94,14 +85,18 @@ export async function getProject(id: string): Promise<Project | null> {
     .eq('id', id)
     .single()
   if (error) {
-    if (error.code === 'PGRST116') return null
+    if ((error as any).code === 'PGRST116') return null
     throw error
   }
   return data ? fromRow(data) : null
 }
 
 export async function createProject(input: ProjectInsert): Promise<Project> {
-  const row = toRow(input)
+  const { data: u } = await supabase.auth.getUser()
+  const userId = u?.user?.id
+  if (!userId) throw new Error('No hay sesión. Inicia sesión para crear proyectos.')
+
+  const row = { ...toRow(input), user_id: userId }
   const { data, error } = await supabase
     .from('projects')
     .insert(row)
@@ -128,10 +123,6 @@ export async function deleteProject(id: string): Promise<void> {
   if (error) throw error
 }
 
-/** Utilidad simple para filtrar por rango de fechas (duración total).
- * durationStart = prepStart ?? rodajeStart
- * durationEnd   = rodajeEnd
- */
 export function getDurationRange(p: Project): { start: string; end: string } {
   const start = p.prepStart ?? p.rodajeStart
   const end = p.rodajeEnd
