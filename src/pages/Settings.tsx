@@ -50,8 +50,10 @@ export default function Settings() {
           </Link>
         </div>
 
-        <div className="text-xs text-gray-500">v1.1 • PWA • IndexedDB • Google Calendar</div>
-      </div>
+      <div className="text-xs text-gray-500">
+          v1.2 • PWA • Supabase Cloud Database • Google Calendar (desactivado)
+        </div>
+
     </div>
   );
 }
