@@ -1,4 +1,3 @@
-// src/state/session.tsx
 import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -8,7 +7,6 @@ type SessionContextType = {
   user: User | null
   loading: boolean
   signOut: () => Promise<void>
-  // opcional: magic link por email
   signInWithEmail: (email: string) => Promise<{ ok: boolean; error?: string }>
 }
 
@@ -40,7 +38,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
     loading,
     signOut: () => supabase.auth.signOut(),
     async signInWithEmail(email: string) {
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      })
       if (error) return { ok: false, error: error.message }
       return { ok: true }
     },
