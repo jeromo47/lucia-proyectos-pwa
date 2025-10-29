@@ -7,7 +7,8 @@ import CustomFields from '@/pages/CustomFields'
 import Splash from '@/components/Splash'
 import { useEffect, useState } from 'react'
 import { rescheduleAll } from '@/lib/notifications'
-import { SessionProvider } from '@/state/session' // ⬅️ añadido
+import { SessionProvider } from '@/state/session'
+import DevProjects from '@/pages/DevProjects' // ⬅️ nuevo
 
 export default function App() {
   const [boot, setBoot] = useState(false)
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/custom-fields" element={<CustomFields />} />
+          <Route path="/dev" element={<DevProjects />} /> {/* ⬅️ ruta temporal */}
         </Routes>
       </BrowserRouter>
     </SessionProvider>
