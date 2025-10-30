@@ -1,40 +1,58 @@
 // src/lib/google.ts
-// Stub de Google Calendar: evita que el build falle cuando la integración está desactivada.
-// Exporta funciones "no-op" para cubrir cualquier import existente.
+// Stub de Google Calendar para build sin dependencia externa.
+// Exporta funciones no-op con las MISMAS firmas que usa la app.
 
 const CALENDAR_ENABLED = import.meta.env.VITE_CALENDAR_ENABLED === 'true';
 export const isCalendarEnabled = CALENDAR_ENABLED;
 
-// Utilidad no-op
-const warn = (fn: string) =>
-  console.warn(`[Google Calendar] ${fn}() llamado, pero la integración está desactivada.`);
-
-// Inicialización
-export async function initGoogle(): Promise<void> {
-  if (!CALENDAR_ENABLED) return;
-  // Aquí iría la carga real del SDK si se reactivara en el futuro.
+// Estado de sesión (stub)
+export function isSignedIn(): boolean {
+  return false;
 }
 
-// Sesión
-export function isSignedIn(): boolean { return false; }
-export async function signIn(): Promise<void> { warn('signIn'); }
-export async function signOut(): Promise<void> { warn('signOut'); }
+// Login/Logout (stub)
+export async function signIn(): Promise<void> {
+  console.warn('[Google Calendar] signIn() llamado, integración desactivada.');
+}
+export async function signOut(): Promise<void> {
+  console.warn('[Google Calendar] signOut() llamado, integración desactivada.');
+}
 
-// Lectura de calendarios/eventos
-export async function listCalendars(): Promise<any[]> { return []; }
-export async function listEvents(_args?: any): Promise<any[]> { return []; }
+// Inicialización (stub)
+export async function initGoogle(): Promise<void> {
+  // Sin carga de SDK si está desactivado.
+}
 
-// CRUD de eventos (nombres múltiples para cubrir imports existentes)
-export async function createEvent(_e: any): Promise<null> { warn('createEvent'); return null; }
-export async function updateEvent(_id: string, _p: any): Promise<null> { warn('updateEvent'); return null; }
-export async function deleteEvent(_id: string): Promise<void> { warn('deleteEvent'); }
+// Listar eventos (firma usada por Home.tsx)
+export async function listEvents(
+  _calendarId: string,
+  _startISO: string,
+  _endISO: string
+): Promise<any[]> {
+  return [];
+}
 
-export async function createCalendarEvent(_e: any): Promise<null> { warn('createCalendarEvent'); return null; }
-export async function updateCalendarEvent(_id: string, _p: any): Promise<null> { warn('updateCalendarEvent'); return null; }
-export async function deleteCalendarEvent(_id: string): Promise<void> { warn('deleteCalendarEvent'); }
+// Crear/actualizar/borrar eventos con firmas compatibles
+export async function createCalendarEvent(
+  _calendarId: string,
+  _event: any
+): Promise<null> {
+  console.warn('[Google Calendar] createCalendarEvent() llamado, integración desactivada.');
+  return null;
+}
 
-// Otros helpers habituales (por si existen en tu código)
-export async function ensureCalendar(_id?: string): Promise<null> { return null; }
-export async function ensureAuthorized(): Promise<boolean> { return false; }
-export async function addReminder(_e: any): Promise<void> { warn('addReminder'); }
-export async function removeReminder(_id: string): Promise<void> { warn('removeReminder'); }
+export async function updateCalendarEvent(
+  _calendarId: string,
+  _eventId: string,
+  _patch: any
+): Promise<null> {
+  console.warn('[Google Calendar] updateCalendarEvent() llamado, integración desactivada.');
+  return null;
+}
+
+export async function deleteCalendarEvent(
+  _calendarId: string,
+  _eventId?: string | null
+): Promise<void> {
+  console.warn('[Google Calendar] deleteCalendarEvent() llamado, integración desactivada.');
+}
