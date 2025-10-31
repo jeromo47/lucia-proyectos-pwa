@@ -3,7 +3,6 @@ import HeaderBar from '@/components/HeaderBar'
 import { getProjects, type Project } from '@/lib/repo'
 
 /** ==== Utilidades de fechas (YYYY-MM-DD) ==== */
-const DATE_RX = /^\d{4}-\d{2}-\d{2}$/
 const WEEK_START_MONDAY = true
 
 function todayISO() {
@@ -11,7 +10,6 @@ function todayISO() {
   const z = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
   return z.toISOString().slice(0, 10)
 }
-
 function parseISO(s: string): Date {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d))
@@ -29,31 +27,25 @@ function startOfMonthISO(d: Date): string {
   return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)))
 }
 function endOfMonthISO(d: Date): string {
-  // día 0 del mes siguiente => último del mes actual
   return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)))
 }
 function dayOfWeekISO(iso: string): number {
-  // 0..6, domingo=0 … sábado=6
   return parseISO(iso).getUTCDay()
 }
 function startOfCalendarISO(monthStartISO: string): string {
-  const dow = dayOfWeekISO(monthStartISO) // 0:dom, 1:lun...
+  const dow = dayOfWeekISO(monthStartISO)
   if (WEEK_START_MONDAY) {
-    // queremos lunes=0; si es domingo (0) => retroceder 6; si es lunes(1)=>0...
     const shift = dow === 0 ? 6 : dow - 1
     return addDaysISO(monthStartISO, -shift)
   }
-  // semana empieza domingo
   return addDaysISO(monthStartISO, -dow)
 }
 function endOfCalendarISO(monthEndISO: string): string {
   const dow = dayOfWeekISO(monthEndISO)
   if (WEEK_START_MONDAY) {
-    // queremos domingo como final visible; si fin es domingo (0) => +0; si es lunes (1) => +6...
     const shift = dow === 0 ? 0 : 7 - dow
     return addDaysISO(monthEndISO, shift)
   }
-  // semana empieza domingo; queremos sábado (6)
   const shift = 6 - dow
   return addDaysISO(monthEndISO, shift)
 }
@@ -67,29 +59,51 @@ function eachDayISO(startISO: string, endISO: string): string[] {
   return days
 }
 
-/** ==== Colores de proyectos ==== */
-function hashToHue(s: string): number {
-  let h = 0
+/** ==== Paleta pastel determinista por proyecto ==== */
+const PASTEL = [
+  { bg: 'hsl(10 90% 94%)',  text: 'hsl(10 45% 30%)',  border: 'hsl(10 55% 70%)'  }, // coral suave
+  { bg: 'hsl(25 90% 94%)',  text: 'hsl(25 45% 30%)',  border: 'hsl(25 55% 70%)'  }, // melocotón
+  { bg: 'hsl(45 90% 92%)',  text: 'hsl(45 45% 28%)',  border: 'hsl(45 55% 68%)'  }, // mostaza
+  { bg: 'hsl(80 70% 92%)',  text: 'hsl(80 40% 25%)',  border: 'hsl(80 45% 62%)'  }, // lima
+  { bg: 'hsl(140 60% 92%)', text: 'hsl(140 35% 24%)', border: 'hsl(140 45% 62%)' }, // menta
+  { bg: 'hsl(170 60% 92%)', text: 'hsl(170 35% 24%)', border: 'hsl(170 45% 62%)' }, // aguamarina
+  { bg: 'hsl(195 70% 92%)', text: 'hsl(195 40% 25%)', border: 'hsl(195 50% 62%)' }, // cielo
+  { bg: 'hsl(220 70% 92%)', text: 'hsl(220 40% 25%)', border: 'hsl(220 50% 62%)' }, // azul pastel
+  { bg: 'hsl(250 70% 93%)', text: 'hsl(250 40% 28%)', border: 'hsl(250 50% 65%)' }, // violeta
+  { bg: 'hsl(280 70% 94%)', text: 'hsl(280 40% 30%)', border: 'hsl(280 50% 68%)' }, // lila
+  { bg: 'hsl(320 70% 94%)', text: 'hsl(320 40% 30%)', border: 'hsl(320 50% 70%)' }, // magenta
+  { bg: 'hsl(0 0% 94%)',    text: 'hsl(0 0% 30%)',    border: 'hsl(0 0% 70%)'    }, // gris cálido
+]
+function hashString(s: string): number {
+  let h = 2166136261
   for (let i = 0; i < s.length; i++) {
-    h = (h * 31 + s.charCodeAt(i)) % 360
+    h ^= s.charCodeAt(i)
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)
   }
-  return h
+  return Math.abs(h)
 }
-function colorForProject(p: Project): { bg: string; text: string; border: string } {
+function colorForProject(p: Project) {
   if (!p.confirmed) {
     return {
-      bg: 'bg-red-50',
-      text: 'text-red-700',
-      border: 'border-red-400 border-dashed'
+      style: {
+        backgroundColor: 'hsl(0 85% 95%)',
+        color: 'hsl(0 60% 32%)',
+        borderColor: 'hsl(0 70% 70%)'
+      },
+      dashed: true
     }
   }
-  const base = p.color_seed ?? p.id ?? p.name ?? 'x'
-  const hue = hashToHue(base)
-  // paleta suave
-  const bg = `bg-[hsl(${hue}deg_85%_90%)]`
-  const text = `text-[hsl(${hue}deg_40%_28%)]`
-  const border = `border-[hsl(${hue}deg_60%_60%)]`
-  return { bg, text, border }
+  const key = p.color_seed || p.id || p.name || 'x'
+  const idx = hashString(key) % PASTEL.length
+  const sw = PASTEL[idx]
+  return {
+    style: {
+      backgroundColor: sw.bg,
+      color: sw.text,
+      borderColor: sw.border
+    },
+    dashed: false
+  }
 }
 
 /** ==== Fases por día ==== */
@@ -106,11 +120,10 @@ function dayInTotalRange(p: Project, isoDay: string): boolean {
   return !!(start && end && start <= isoDay && isoDay <= end)
 }
 
-/** ==== Componente principal ==== */
+/** ==== Calendario ==== */
 export default function CalendarPage() {
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const t = todayISO()
-    // Anclamos al primer día del mes actual
     return startOfMonthISO(parseISO(t))
   })
   const [items, setItems] = useState<Project[]>([])
@@ -129,7 +142,6 @@ export default function CalendarPage() {
       setLoading(false)
     }
   }
-
   useEffect(() => { load() }, [])
 
   const monthStart = monthAnchor
@@ -144,21 +156,12 @@ export default function CalendarPage() {
     setMonthAnchor(startOfMonthISO(d))
   }
 
-  // Proyectos a renderizar: hasta 4 confirmados "más cercanos" y todos los pendientes (en rojo) visibles
-  const confirmedSorted = useMemo(() => {
-    return items
-      .filter(p => p.confirmed)
-      .sort((a, b) => (a.rodajeStart < b.rodajeStart ? -1 : 1))
-  }, [items])
-
+  const confirmedSorted = useMemo(
+    () => items.filter(p => p.confirmed).sort((a, b) => (a.rodajeStart < b.rodajeStart ? -1 : 1)),
+    [items]
+  )
   const pending = useMemo(() => items.filter(p => !p.confirmed), [items])
 
-  // Coge hasta 4 confirmados representativos + todos los pendientes (se verán translúcidos/rojos)
-  const paletteProjects = useMemo(() => {
-    return confirmedSorted.slice(0, 4).concat(pending)
-  }, [confirmedSorted, pending])
-
-  // Render
   return (
     <div className="h-full flex flex-col">
       <HeaderBar />
@@ -167,33 +170,17 @@ export default function CalendarPage() {
         {/* Barra superior */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => gotoMonth(-1)}
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            >
-              ← Anterior
-            </button>
-            <button
-              onClick={() => setMonthAnchor(startOfMonthISO(parseISO(todayISO())))}
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            >
-              Hoy
-            </button>
-            <button
-              onClick={() => gotoMonth(1)}
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            >
-              Siguiente →
-            </button>
+            <button onClick={() => gotoMonth(-1)} className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">← Anterior</button>
+            <button onClick={() => setMonthAnchor(startOfMonthISO(parseISO(todayISO())))} className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">Hoy</button>
+            <button onClick={() => gotoMonth(1)} className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">Siguiente →</button>
           </div>
 
           <div className="font-medium">
-            {new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-              .format(parseISO(monthStart))}
+            {new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parseISO(monthStart))}
           </div>
 
           <div className="text-xs text-gray-500">
-            Máx. 4 proyectos simultáneos (los más próximos). Pendientes en rojo y discontinuo.
+            Cada día se adapta (1–4). Pendientes en rojo y discontinuo.
           </div>
         </div>
 
@@ -201,78 +188,100 @@ export default function CalendarPage() {
         {error && <div className="text-sm text-red-600">{error}</div>}
 
         {!loading && !error && (
-          <div className="border rounded-xl overflow-hidden">
-            {/* Cabecera días de la semana */}
+          <div className="rounded-2xl border shadow-sm overflow-hidden">
+            {/* Cabecera días */}
             <div className="grid grid-cols-7 bg-gray-50 text-xs text-gray-600">
-              {(WEEK_START_MONDAY
-                ? ['L', 'M', 'X', 'J', 'V', 'S', 'D']
-                : ['D', 'L', 'M', 'X', 'J', 'V', 'S']
-              ).map((d) => (
-                <div key={d} className="px-2 py-2 border-b">{d}</div>
+              {(WEEK_START_MONDAY ? ['L', 'M', 'X', 'J', 'V', 'S', 'D'] : ['D', 'L', 'M', 'X', 'J', 'V', 'S']).map((d) => (
+                <div key={d} className="px-3 py-2 border-b font-medium">{d}</div>
               ))}
             </div>
 
-            {/* Celdas de días */}
-            <div className="grid grid-cols-7">
+            {/* Celdas */}
+            <div className="grid grid-cols-7 gap-1 p-1 bg-gray-100">
               {days.map((iso) => {
                 const inMonth = iso >= monthStart && iso <= monthEnd
                 const dayNum = parseISO(iso).getUTCDate()
 
-                // Reunir proyectos que caen en este día (en su rango total)
-                const projectsToday = paletteProjects.filter(p => dayInTotalRange(p, iso))
-                // Mostrar como máximo 4 mini-celdas (2×2). Prioriza confirmados.
+                // Reunimos proyectos por día en su rango total
+                const projectsTodayAll = items.filter(p => dayInTotalRange(p, iso))
+                // Regla: prioriza confirmados; añade pendientes si caben (hasta 4)
+                const confirmed = projectsTodayAll.filter(p => p.confirmed)
+                const pendings = projectsTodayAll.filter(p => !p.confirmed)
                 const sortedForDay = [
-                  ...projectsToday.filter(p => p.confirmed).slice(0, 4),
-                  ...projectsToday.filter(p => !p.confirmed).slice(0, Math.max(0, 4 - projectsToday.filter(p => p.confirmed).length)),
+                  ...confirmed.slice(0, 4),
+                  ...pendings.slice(0, Math.max(0, 4 - confirmed.length))
                 ].slice(0, 4)
 
+                const count = sortedForDay.length
+
+                // Layout adaptativo:
+                // 1 → 1 bloque grande
+                // 2 → dos columnas
+                // 3 → dos columnas con wrap (quedará 2 arriba + 1 abajo)
+                // 4 → 2x2
+                const containerClass =
+                  count <= 1
+                    ? 'h-full flex'
+                    : 'h-full flex flex-wrap gap-2 mt-2'
+                const itemClass = (i: number) => {
+                  if (count === 1) return 'flex-1 min-h-[88px]'
+                  if (count === 2) return 'basis-1/2 min-h-[72px]'
+                  if (count === 3) return 'basis-1/2 min-h-[62px]'
+                  return 'basis-1/2 min-h-[62px]' // 4
+                }
+
                 return (
-                  <div
-                    key={iso}
-                    className={`min-h-[94px] border p-1 relative ${inMonth ? 'bg-white' : 'bg-gray-50'}`}
-                  >
-                    {/* número del día */}
-                    <div className="absolute top-1 right-1 text-[11px] text-gray-500">{dayNum}</div>
+                  <div key={iso} className="min-h-[120px]">
+                    {/* Card del día */}
+                    <div className={`h-full rounded-xl border ${inMonth ? 'bg-white' : 'bg-white/70'} shadow-sm p-2 relative`}>
+                      {/* chip de fecha */}
+                      <div className="absolute -top-2 -left-2">
+                        <div className={`px-2 py-0.5 rounded-full text-[11px] border shadow-sm ${inMonth ? 'bg-white' : 'bg-gray-50'} text-gray-600`}>
+                          {dayNum}
+                        </div>
+                      </div>
 
-                    {/* cuadrícula 2x2 de mini-proyectos */}
-                    <div className="grid grid-cols-2 grid-rows-2 gap-1 h-full">
-                      {sortedForDay.map((p, idx) => {
-                        const phase = phaseForDay(p, iso) // 'P' | 'F' | 'R' | null
-                        const col = colorForProject(p)
+                      {/* Contenedor dinámico */}
+                      <div className={containerClass}>
+                        {count === 0 && (
+                          <div className="w-full h-full rounded-lg border border-dashed bg-white/60" />
+                        )}
 
-                        // estilos de pendiente
-                        const pendingStyles = p.confirmed
-                          ? ''
-                          : 'opacity-70'
-
-                        return (
-                          <div
-                            key={p.id + iso + idx}
-                            className={[
-                              'rounded-md border p-1 flex flex-col justify-between overflow-hidden',
-                              col.bg, col.border, pendingStyles,
-                            ].join(' ')}
-                            title={p.name}
-                          >
-                            <div className={`text-[10px] leading-tight font-medium truncate ${col.text}`}>
-                              {p.name || 'Sin título'}
+                        {sortedForDay.map((p, idx) => {
+                          const phase = phaseForDay(p, iso)
+                          const { style, dashed } = colorForProject(p)
+                          return (
+                            <div
+                              key={p.id + iso + idx}
+                              className={[
+                                'rounded-lg border p-1.5 flex flex-col justify-between overflow-hidden',
+                                dashed ? 'border-dashed' : ''
+                              ].join(' ')}
+                              style={style as any}
+                              title={p.name}
+                              // tamaño según count
+                            >
+                              <div className={`text-[10px] leading-tight font-medium truncate`}>
+                                {p.name || 'Sin título'}
+                              </div>
+                              <div className="flex items-center justify-end">
+                                <span
+                                  className={[
+                                    'inline-flex items-center justify-center text-[10px] w-5 h-5 rounded-full border bg-white/60 backdrop-blur',
+                                    dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70'
+                                  ].join(' ')}
+                                >
+                                  {phase ?? ''}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-end">
-                              <span className={[
-                                'inline-flex items-center justify-center text-[10px] w-4 h-4 rounded-full border',
-                                p.confirmed ? 'border-black/20 text-black/70' : 'border-red-500 text-red-700'
-                              ].join(' ')}>
-                                {phase ?? ''}
-                              </span>
-                            </div>
+                          )
+                        }).map((node, i) => (
+                          <div key={i} className={itemClass(i)}>
+                            {node}
                           </div>
-                        )
-                      })}
-
-                      {/* Relleno si hay <4 proyectos */}
-                      {Array.from({ length: Math.max(0, 4 - sortedForDay.length) }).map((_, i) => (
-                        <div key={`empty-${iso}-${i}`} className="rounded-md border border-dashed" />
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )
