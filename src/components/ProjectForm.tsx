@@ -3,30 +3,31 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Project } from '@/lib/repo'
 import { createProject, updateProject, getProjects } from '@/lib/repo'
 
-// Helpers de fecha (YYYY-MM-DD) sin zona
-function toISODate(d: Date) {
-  const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-  return utc.toISOString().slice(0, 10)
+// --- Helpers de fecha seguros (solo aceptan YYYY-MM-DD) ---
+const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
+
+function safeParseISO(s?: string | null): Date | null {
+  if (!s || !DATE_RX.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  // Validaciones mínimas
+  if (y < 1900 || y > 2100) return null;
+  if (m < 1 || m > 12) return null;
+  if (d < 1 || d > 31) return null;
+  return new Date(y, m - 1, d);
 }
-function parseISODate(s?: string | null) {
-  if (!s) return null
-  const [y, m, d] = s.split('-').map(Number)
-  if (!y || !m || !d) return null
-  return new Date(y, m - 1, d)
+function toISO(d: Date): string {
+  // Normaliza a fecha "pura" sin huso
+  const z = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  return z.toISOString().slice(0, 10);
 }
-function addDays(iso: string, days: number) {
-  const d = parseISODate(iso)!
-  d.setDate(d.getDate() + days)
-  return toISODate(d)
-}
-function isAfterOrEqual(a: string, b: string) {
-  return a >= b
-}
-function isBeforeOrEqual(a: string, b: string) {
-  return a <= b
+function addDays(iso: string, days: number): string | null {
+  const base = safeParseISO(iso);
+  if (!base) return null;
+  base.setDate(base.getDate() + days);
+  return toISO(base);
 }
 function rangeOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  return !(aEnd < bStart || bEnd < aStart) // solapan si no están completamente separados
+  return !(aEnd < bStart || bEnd < aStart);
 }
 
 type Props = {
@@ -47,65 +48,63 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
   const [teamBudget, setTeamBudget] = useState<string>(editing?.teamBudget != null ? String(editing.teamBudget) : '')
   const [confirmed, setConfirmed] = useState<boolean>(editing?.confirmed ?? true)
 
-  // Fechas de Rodaje (obligatorias)
+  // Fechas
   const [rodajeStart, setRodajeStart] = useState<string>(editing?.rodajeStart ?? '')
   const [rodajeEnd, setRodajeEnd] = useState<string>(editing?.rodajeEnd ?? '')
-
-  // Fitting (por defecto: 2 días antes del inicio de rodaje, 1 día)
   const [fittingStart, setFittingStart] = useState<string>(editing?.fittingStart ?? '')
   const [fittingEnd, setFittingEnd] = useState<string>(editing?.fittingEnd ?? '')
-
-  // Preparación (por defecto: 6 días antes de FittingStart, 6 días)
   const [prepStart, setPrepStart] = useState<string>(editing?.prepStart ?? '')
   const [prepEnd, setPrepEnd] = useState<string>(editing?.prepEnd ?? '')
 
   const [saving, setSaving] = useState(false)
-  const [warnOverlap, setWarnOverlap] = useState<string | null>(null)
 
-  // Autocálculo inicial/ reactivo
-  // - Al introducir RodajeStart por primera vez o cambiarlo, si no hay valores manuales previos:
-  //   fittingStart = rodajeStart - 2 días; fittingEnd = fittingStart
-  // - Al introducir/cambiar FittingStart, si no hubo edición manual de Prep:
-  //   prepStart = fittingStart - 6 días; prepEnd = fittingStart - 1 día (6 días de duración)
+  // ----- Autocálculos SOLO si el formato es válido -----
   useEffect(() => {
-    if (!rodajeStart) return
-    // Autocalcula fitting si está vacío
+    if (!DATE_RX.test(rodajeStart)) return;
     if (!fittingStart) {
-      const fs = addDays(rodajeStart, -2)
-      setFittingStart(fs)
-      setFittingEnd(fs)
+      const fs = addDays(rodajeStart, -2);
+      if (fs) {
+        setFittingStart(fs);
+        if (!fittingEnd) setFittingEnd(fs);
+      }
     }
-  }, [rodajeStart]) // eslint-disable-line
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rodajeStart])
 
   useEffect(() => {
-    if (!fittingStart) return
-    // Autocalcula preparación si está vacía
+    if (!DATE_RX.test(fittingStart)) return;
     if (!prepStart || !prepEnd) {
-      const ps = addDays(fittingStart, -6)
-      const pe = addDays(fittingStart, -1) // 6 días hasta la víspera del fitting
-      setPrepStart(ps)
-      setPrepEnd(pe)
+      const ps = addDays(fittingStart, -6);
+      const pe = addDays(fittingStart, -1);
+      if (ps) setPrepStart(ps);
+      if (pe) setPrepEnd(pe);
     }
-  }, [fittingStart]) // eslint-disable-line
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fittingStart])
 
   const durationStart = useMemo(() => {
-    return prepStart || rodajeStart || ''
+    return prepStart && DATE_RX.test(prepStart) ? prepStart : (rodajeStart || '');
   }, [prepStart, rodajeStart])
 
   const durationEnd = useMemo(() => rodajeEnd || '', [rodajeEnd])
 
   const canSave = useMemo(() => {
-    if (!name.trim()) return false
-    if (!rodajeStart || !rodajeEnd) return false
-    if (rodajeStart > rodajeEnd) return false
-    // Si hay fitting: asegurar orden (opcional, no bloquea si usuario borra fitting)
-    if (fittingStart && !isBeforeOrEqual(fittingStart, rodajeStart)) return false
-    if (fittingStart && fittingEnd && !isBeforeOrEqual(fittingStart, fittingEnd)) return false
-    // Si hay preparación: asegurar orden previa al fitting
-    if (prepStart && fittingStart && !isBeforeOrEqual(prepStart, fittingStart)) return false
-    if (prepStart && prepEnd && !isBeforeOrEqual(prepStart, prepEnd)) return false
-    if (prepEnd && fittingStart && !isBeforeOrEqual(prepEnd, fittingStart)) return false
-    return true
+    if (!name.trim()) return false;
+    if (!DATE_RX.test(rodajeStart) || !DATE_RX.test(rodajeEnd)) return false;
+    if (rodajeStart > rodajeEnd) return false;
+
+    // Validaciones suaves de orden
+    if (fittingStart && !DATE_RX.test(fittingStart)) return false;
+    if (fittingEnd && !DATE_RX.test(fittingEnd)) return false;
+    if (prepStart && !DATE_RX.test(prepStart)) return false;
+    if (prepEnd && !DATE_RX.test(prepEnd)) return false;
+
+    if (fittingStart && rodajeStart && !(fittingStart <= rodajeStart)) return false;
+    if (fittingStart && fittingEnd && !(fittingStart <= fittingEnd)) return false;
+    if (prepStart && fittingStart && !(prepStart <= fittingStart)) return false;
+    if (prepStart && prepEnd && !(prepStart <= prepEnd)) return false;
+    if (prepEnd && fittingStart && !(prepEnd <= fittingStart)) return false;
+    return true;
   }, [name, rodajeStart, rodajeEnd, fittingStart, fittingEnd, prepStart, prepEnd])
 
   async function checkOverlaps(proposed: {
@@ -116,55 +115,38 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
     fitting?: [string, string] | null
     rodaje: [string, string]
   }) {
-    if (!proposed.confirmed) return null // Solo avisamos si el proyecto va a estar confirmado
-    const others = await getProjects()
-    const conflicts: string[] = []
+    if (!proposed.confirmed) return null;
+    const others = await getProjects();
+    const conflicts: string[] = [];
 
     for (const o of others) {
-      if (proposed.id && o.id === proposed.id) continue
-      if (!o.confirmed) continue
+      if (proposed.id && o.id === proposed.id) continue;
+      if (!o.confirmed) continue;
 
-      const oPrep = o.prepStart && o.prepEnd ? [o.prepStart, o.prepEnd] as [string, string] : null
-      const oFitting = o.fittingStart && o.fittingEnd ? [o.fittingStart, o.fittingEnd] as [string, string] : null
-      const oRodaje = [o.rodajeStart, o.rodajeEnd] as [string, string]
+      const oPrep = (o.prepStart && o.prepEnd) ? [o.prepStart, o.prepEnd] as [string, string] : null;
+      const oFitting = (o.fittingStart && o.fittingEnd) ? [o.fittingStart, o.fittingEnd] as [string, string] : null;
+      const oRodaje = [o.rodajeStart, o.rodajeEnd] as [string, string];
 
-      // Fase a fase, si tenemos ambas bandas
       if (proposed.prep && oPrep && rangeOverlap(proposed.prep[0], proposed.prep[1], oPrep[0], oPrep[1])) {
-        conflicts.push(`Solape de Preparación con "${o.name}" (${proposed.prep[0]}–${proposed.prep[1]} vs ${oPrep[0]}–${oPrep[1]})`)
+        conflicts.push(`Solape de Preparación con "${o.name}" (${proposed.prep[0]}–${proposed.prep[1]} vs ${oPrep[0]}–${oPrep[1]})`);
       }
       if (proposed.fitting && oFitting && rangeOverlap(proposed.fitting[0], proposed.fitting[1], oFitting[0], oFitting[1])) {
-        conflicts.push(`Solape de Fitting con "${o.name}" (${proposed.fitting[0]}–${proposed.fitting[1]} vs ${oFitting[0]}–${oFitting[1]})`)
+        conflicts.push(`Solape de Fitting con "${o.name}" (${proposed.fitting[0]}–${proposed.fitting[1]} vs ${oFitting[0]}–${oFitting[1]})`);
       }
-      // Siempre comprobamos rodaje
       if (rangeOverlap(proposed.rodaje[0], proposed.rodaje[1], oRodaje[0], oRodaje[1])) {
-        conflicts.push(`Solape de Rodaje con "${o.name}" (${proposed.rodaje[0]}–${proposed.rodaje[1]} vs ${oRodaje[0]}–${oRodaje[1]})`)
-      }
-
-      // Si no había datos de fases en el otro proyecto, al menos avisamos por el rango total
-      const pTotalStart = proposed.prep?.[0] ?? proposed.rodaje[0]
-      const pTotalEnd = proposed.rodaje[1]
-      const oTotalStart = o.prepStart ?? o.rodajeStart
-      const oTotalEnd = o.rodajeEnd
-      if (rangeOverlap(pTotalStart, pTotalEnd, oTotalStart, oTotalEnd)) {
-        // Evita duplicar si ya hubo conflictos de fases/rodaje
-        // (hecho simple: solo añade si no hay aún conflictos para ese otro proyecto)
-        // Aquí lo mantenemos simple para no sobrecomplicar
+        conflicts.push(`Solape de Rodaje con "${o.name}" (${proposed.rodaje[0]}–${proposed.rodaje[1]} vs ${oRodaje[0]}–${oRodaje[1]})`);
       }
     }
 
-    if (conflicts.length) {
-      return conflicts.join('\n')
-    }
-    return null
+    return conflicts.length ? conflicts.join('\n') : null;
   }
 
   async function handleSave() {
     if (!canSave) {
-      alert('Revisa los campos: nombre y fechas (el orden debe ser correcto).')
-      return
+      alert('Revisa los campos: formato de fechas (YYYY-MM-DD) y orden lógico.');
+      return;
     }
 
-    // Prepara payload
     const payload = {
       confirmed,
       name: name.trim(),
@@ -175,16 +157,14 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
       notes: notes.trim(),
       budget: budget === '' ? null : Number(budget),
       teamBudget: teamBudget === '' ? null : Number(teamBudget),
-      // Fechas
       rodajeStart,
       rodajeEnd,
       fittingStart: fittingStart || null,
-      fittingEnd: fittingEnd || fittingStart || null, // si hay fittingStart pero no end, lo igualamos
+      fittingEnd: fittingEnd || fittingStart || null,
       prepStart: prepStart || null,
       prepEnd: prepEnd || null,
     }
 
-    // Chequeo de solapes (solo si confirmado)
     setSaving(true)
     try {
       const overlapMsg = await checkOverlaps({
@@ -197,12 +177,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
       })
 
       if (overlapMsg) {
-        setWarnOverlap(overlapMsg)
-        const proceed = confirm(`${overlapMsg}\n\n¿Deseas guardar igualmente?`)
-        if (!proceed) {
-          setSaving(false)
-          return
-        }
+        const proceed = confirm(`${overlapMsg}\n\n¿Deseas guardar igualmente?`);
+        if (!proceed) { setSaving(false); return; }
       }
 
       if (editing?.id) {
@@ -221,8 +197,10 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-xl rounded-2xl shadow-lg relative">
+    // overlay con scroll
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      {/* contenedor con altura máxima y scroll interno */}
+      <div className="bg-white w-full max-w-xl rounded-2xl shadow-lg relative max-h-[90vh] flex flex-col">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 text-lg"
@@ -231,13 +209,16 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
           ✕
         </button>
 
-        <div className="p-6">
-          <h2 className="text-lg font-semibold mb-4 uppercase tracking-wide text-center">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold uppercase tracking-wide text-center">
             {editing ? 'Editar proyecto' : 'Nuevo proyecto'}
           </h2>
+        </div>
 
+        {/* área scrolleable */}
+        <div className="p-6 space-y-4 overflow-y-auto">
           {/* Confirmado / Pendiente */}
-          <div className="section-card p-4 mb-4">
+          <div className="section-card p-4">
             <label className="flex items-center gap-3 text-sm">
               <input
                 type="checkbox"
@@ -252,7 +233,7 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
           </div>
 
           {/* Datos de negocio */}
-          <div className="section-card p-4 mb-4">
+          <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Información del proyecto</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm block">
@@ -320,7 +301,7 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
           </div>
 
           {/* Presupuestos */}
-          <div className="section-card p-4 mb-4">
+          <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Presupuestos</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm block">
@@ -351,8 +332,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Fechas: Rodaje */}
-          <div className="section-card p-4 mb-4">
+          {/* Rodaje */}
+          <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Rodaje</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm block">
@@ -381,8 +362,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
             )}
           </div>
 
-          {/* Fechas: Fitting (editable) */}
-          <div className="section-card p-4 mb-4">
+          {/* Fitting */}
+          <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Fitting</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm block">
@@ -392,8 +373,9 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
                   className="w-full border rounded-lg px-3 py-2 mt-1"
                   value={fittingStart}
                   onChange={(e) => {
-                    setFittingStart(e.target.value)
-                    if (!fittingEnd) setFittingEnd(e.target.value)
+                    const v = e.target.value;
+                    setFittingStart(v);
+                    if (!fittingEnd && DATE_RX.test(v)) setFittingEnd(v);
                   }}
                 />
               </label>
@@ -411,8 +393,8 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Fechas: Preparación (editable) */}
-          <div className="section-card p-4 mb-4">
+          {/* Preparación */}
+          <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Preparación</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm block">
@@ -438,20 +420,21 @@ export default function ProjectForm({ editing, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Duración total (no editable) */}
+          {/* Duración total */}
           <div className="section-card p-4">
             <div className="text-xs uppercase text-gray-500 mb-2">Duración total (calculada)</div>
             <div className="text-sm">
-              {durationStart && durationEnd
-                ? `${durationStart} → ${durationEnd}`
-                : '—'}
+              {durationStart && durationEnd ? `${durationStart} → ${durationEnd}` : '—'}
             </div>
           </div>
+        </div>
 
+        {/* footer fijo con botón */}
+        <div className="p-6 border-t">
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="w-full mt-6 bg-black text-white py-3 rounded-lg text-base font-semibold disabled:opacity-50"
+            className="w-full bg-black text-white py-3 rounded-lg text-base font-semibold disabled:opacity-50"
           >
             {saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Crear proyecto')}
           </button>
