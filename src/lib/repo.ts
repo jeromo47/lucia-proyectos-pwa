@@ -26,7 +26,7 @@ export interface Project {
   updated_at?: string
 }
 
-// ------------ helpers de mapeo DB (snake_case) ⇄ app (camelCase)
+// --------- mapeo DB (snake_case) ⇄ app (camelCase)
 type DbRow = {
   id: string
   user_id: string
@@ -118,7 +118,7 @@ function toUpdatePayload(p: Partial<Project>) {
   return u
 }
 
-// ------------ lógica
+// --------- lógica común
 export function getDurationRange(p: Project) {
   const start = p.prepStart ?? p.rodajeStart
   const end = p.rodajeEnd
@@ -138,6 +138,22 @@ export async function getProjects(): Promise<Project[]> {
 
   if (error) throw error
   return (data ?? []).map(rowToProject)
+}
+
+export async function getProject(id: string): Promise<Project | null> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    // PGRST116: no rows
+    // @ts-ignore
+    if (error.code === 'PGRST116') return null
+    throw error
+  }
+  return rowToProject(data as DbRow)
 }
 
 export async function createProject(p: Partial<Project>): Promise<Project> {
