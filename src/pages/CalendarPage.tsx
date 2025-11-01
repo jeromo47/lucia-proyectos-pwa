@@ -60,12 +60,22 @@ function eachDayISO(startISO: string, endISO: string): string[] {
   return out
 }
 
+/* ==== helper iniciales ==== */
+function initials(name?: string, maxLetters = 3): string {
+  const n = (name || '').trim()
+  if (!n) return ''
+  const parts = n.split(/\s+/).slice(0, 3)
+  let chars = parts.map(w => w[0] ?? '').join('')
+  if (parts.length === 1 && n.length >= 2) chars = n.slice(0, 2)
+  return chars.toUpperCase().slice(0, maxLetters)
+}
+
 /* ==== paleta pastel determinista ==== */
 const PASTEL = [
-  { bg: 'hsl(10 90% 94%)',  text: 'hsl(10 45% 30%)',  border: 'hsl(10 55% 70%)'  },
-  { bg: 'hsl(25 90% 94%)',  text: 'hsl(25 45% 30%)',  border: 'hsl(25 55% 70%)'  },
-  { bg: 'hsl(45 90% 92%)',  text: 'hsl(45 45% 28%)',  border: 'hsl(45 55% 68%)'  },
-  { bg: 'hsl(80 70% 92%)',  text: 'hsl(80 40% 25%)',  border: 'hsl(80 45% 62%)'  },
+  { bg: 'hsl(10 90% 94%)', text: 'hsl(10 45% 30%)', border: 'hsl(10 55% 70%)' },
+  { bg: 'hsl(25 90% 94%)', text: 'hsl(25 45% 30%)', border: 'hsl(25 55% 70%)' },
+  { bg: 'hsl(45 90% 92%)', text: 'hsl(45 45% 28%)', border: 'hsl(45 55% 68%)' },
+  { bg: 'hsl(80 70% 92%)', text: 'hsl(80 40% 25%)', border: 'hsl(80 45% 62%)' },
   { bg: 'hsl(140 60% 92%)', text: 'hsl(140 35% 24%)', border: 'hsl(140 45% 62%)' },
   { bg: 'hsl(170 60% 92%)', text: 'hsl(170 35% 24%)', border: 'hsl(170 45% 62%)' },
   { bg: 'hsl(195 70% 92%)', text: 'hsl(195 40% 25%)', border: 'hsl(195 50% 62%)' },
@@ -73,7 +83,7 @@ const PASTEL = [
   { bg: 'hsl(250 70% 93%)', text: 'hsl(250 40% 28%)', border: 'hsl(250 50% 65%)' },
   { bg: 'hsl(280 70% 94%)', text: 'hsl(280 40% 30%)', border: 'hsl(280 50% 68%)' },
   { bg: 'hsl(320 70% 94%)', text: 'hsl(320 40% 30%)', border: 'hsl(320 50% 70%)' },
-  { bg: 'hsl(0 0% 94%)',    text: 'hsl(0 0% 30%)',    border: 'hsl(0 0% 70%)'    },
+  { bg: 'hsl(0 0% 94%)', text: 'hsl(0 0% 30%)', border: 'hsl(0 0% 70%)' }
 ]
 function hashString(s: string): number {
   let h = 2166136261
@@ -98,16 +108,12 @@ function colorForProject(p: Project) {
   const idx = hashString(key) % PASTEL.length
   const sw = PASTEL[idx]
   return {
-    style: {
-      backgroundColor: sw.bg,
-      color: sw.text,
-      borderColor: sw.border
-    },
+    style: { backgroundColor: sw.bg, color: sw.text, borderColor: sw.border },
     dashed: false
   }
 }
 
-/* ==== rangos & fases ==== */
+/* ==== fases ==== */
 type PhaseKey = 'P' | 'F' | 'R' | null
 function phaseForDay(p: Project, iso: string): PhaseKey {
   if (p.prepStart && p.prepEnd && p.prepStart <= iso && iso <= p.prepEnd) return 'P'
@@ -115,17 +121,17 @@ function phaseForDay(p: Project, iso: string): PhaseKey {
   if (p.rodajeStart && p.rodajeEnd && p.rodajeStart <= iso && iso <= p.rodajeEnd) return 'R'
   return null
 }
-function projectTotalRange(p: Project): { start: string | null, end: string | null } {
+function projectTotalRange(p: Project) {
   const start = p.prepStart ?? p.rodajeStart ?? null
   const end = p.rodajeEnd ?? null
   return { start, end }
 }
-function overlapsCalendar(p: Project, calStart: string, calEnd: string): boolean {
+function overlapsCalendar(p: Project, calStart: string, calEnd: string) {
   const { start, end } = projectTotalRange(p)
   if (!start || !end) return false
   return !(end < calStart || start > calEnd)
 }
-function dayInTotalRange(p: Project, iso: string): boolean {
+function dayInTotalRange(p: Project, iso: string) {
   const { start, end } = projectTotalRange(p)
   return !!(start && end && start <= iso && iso <= end)
 }
@@ -173,15 +179,13 @@ function CalendarPage() {
   return (
     <div className="h-full flex flex-col">
       <HeaderBar />
-
       <div className="p-3 md:p-6 space-y-3 md:space-y-4">
-        {/* Cabecera centrada: ←  Mes  → */}
         <div className="flex items-center justify-center gap-2 md:gap-4">
-          <button onClick={() => gotoMonth(-1)} aria-label="Mes anterior" className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg border text-sm hover:bg-gray-50">←</button>
+          <button onClick={() => gotoMonth(-1)} className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg border">←</button>
           <div className="text-base md:text-lg font-medium">
             {new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parseISO(monthStart))}
           </div>
-          <button onClick={() => gotoMonth(1)} aria-label="Mes siguiente" className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg border text-sm hover:bg-gray-50">→</button>
+          <button onClick={() => gotoMonth(1)} className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg border">→</button>
         </div>
 
         {loading && <div className="text-sm text-gray-500 text-center">Cargando…</div>}
@@ -190,23 +194,13 @@ function CalendarPage() {
         {!loading && !error && (
           <>
             <div className="rounded-2xl border shadow-sm overflow-hidden">
-              {/* Cabecera días */}
               <div className="grid grid-cols-7 bg-gray-50 text-[11px] md:text-xs text-gray-600">
                 {(WEEK_START_MONDAY ? ['L', 'M', 'X', 'J', 'V', 'S', 'D'] : ['D', 'L', 'M', 'X', 'J', 'V', 'S']).map((d) => (
                   <div key={d} className="px-2 md:px-3 py-2 border-b font-medium">{d}</div>
                 ))}
               </div>
-
-              {/* Rejilla del calendario */}
-              <CalendarGrid
-                items={items}
-                monthStart={monthStart}
-                monthEnd={monthEnd}
-                calStart={calStart}
-                calEnd={calEnd}
-              />
+              <CalendarGrid items={items} monthStart={monthStart} monthEnd={monthEnd} calStart={calStart} calEnd={calEnd} />
             </div>
-
             {legendProjects.length > 0 && <Legend projects={legendProjects} />}
           </>
         )}
@@ -215,69 +209,36 @@ function CalendarPage() {
   )
 }
 
-/* ==== Grid del calendario (mobile-first) ==== */
-function CalendarGrid({
-  items, monthStart, monthEnd, calStart, calEnd
-}: { items: Project[], monthStart: string, monthEnd: string, calStart: string, calEnd: string }) {
+/* ==== Grid calendario ==== */
+function CalendarGrid({ items, monthStart, monthEnd, calStart, calEnd }: { items: Project[], monthStart: string, monthEnd: string, calStart: string, calEnd: string }) {
   const days = useMemo(() => eachDayISO(calStart, calEnd), [calStart, calEnd])
-
   return (
     <div className="grid grid-cols-7 gap-[3px] md:gap-1 p-[3px] md:p-1 bg-gray-100">
       {days.map((iso) => {
         const inMonth = iso >= monthStart && iso <= monthEnd
         const dayNum = parseISO(iso).getUTCDate()
-
         const pAll = items.filter(p => dayInTotalRange(p, iso))
         const pConf = pAll.filter(p => p.confirmed)
         const pPend = pAll.filter(p => !p.confirmed)
         const pDay = [...pConf.slice(0, 4), ...pPend.slice(0, Math.max(0, 4 - pConf.length))].slice(0, 4)
         const count = pDay.length
-
-        // Alturas mínimas pensadas para móvil (más generosas), con md: más compactas
         const dayMinH =
-          count === 0 ? 'min-h-[70px] md:min-h-[78px]' :
-          count === 1 ? 'min-h-[120px] md:min-h-[110px]' :
-          count === 2 ? 'min-h-[130px] md:min-h-[120px]' :
-                        'min-h-[150px] md:min-h-[130px]'
-
-        // Contenedor y plantilla: gap mayor en móvil para respirar; md: más compacto
-        const containerClass = count <= 1 ? 'h-full block' : 'h-full grid gap-[6px] md:gap-1'
-        const gridTemplate =
-          count === 2
-            ? 'grid-cols-1 auto-rows-[minmax(56px,1fr)] md:auto-rows-[minmax(44px,1fr)]'
-            : 'grid-cols-2 auto-rows-[minmax(56px,1fr)] md:auto-rows-[minmax(44px,1fr)]' // 3–4
-
+          count === 0 ? 'min-h-[70px]' :
+          count === 1 ? 'min-h-[120px]' :
+          count === 2 ? 'min-h-[130px]' : 'min-h-[150px]'
+        const containerClass = count <= 1 ? 'h-full block' : 'h-full grid gap-[6px]'
+        const gridTemplate = count === 2 ? 'grid-cols-1' : 'grid-cols-2'
         return (
           <div key={iso} className={dayMinH}>
-            <div className={`h-full rounded-xl border ${inMonth ? 'bg-white' : 'bg-white/70'} shadow-sm p-1.5 md:p-2 relative`}>
-              {/* chip fecha con z para no solapar títulos */}
+            <div className={`h-full rounded-xl border ${inMonth ? 'bg-white' : 'bg-white/70'} shadow-sm p-1.5 relative`}>
               <div className="absolute -top-2 -left-2 z-10">
-                <div className={`px-1.5 py-0.5 rounded-full text-[10px] md:text-[11px] border shadow-sm ${inMonth ? 'bg-white' : 'bg-gray-50'} text-gray-600`}>
-                  {dayNum}
-                </div>
+                <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
               </div>
-
               <div className={[containerClass, count > 1 ? gridTemplate : ''].join(' ')}>
-                {count === 0 && (
-                  <div className="w-full h-full rounded-lg border border-dashed bg-white/60" />
-                )}
-
-                {/* 1 proyecto: ocupa todo el ancho/alto */}
-                {count === 1 && (
-                  <div className="w-full h-full">
-                    <MiniProjectCard iso={iso} p={pDay[0]} big full />
-                  </div>
-                )}
-
-                {/* 2 proyectos: barras horizontales apiladas */}
-                {count === 2 && pDay.map((p, i) => (
-                  <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} variant="bar" />
-                ))}
-
-                {/* 3–4 proyectos: grid 2x2 */}
-                {count > 2 && pDay.map((p, i) => (
-                  <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} />
-                ))}
+                {count === 0 && <div className="w-full h-full rounded-lg border border-dashed bg-white/60" />}
+                {count === 1 && <MiniProjectCard iso={iso} p={pDay[0]} big full />}
+                {count === 2 && pDay.map((p, i) => <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} variant="bar" />)}
+                {count > 2 && pDay.map((p, i) => <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} compact />)}
               </div>
             </div>
           </div>
@@ -287,69 +248,47 @@ function CalendarGrid({
   )
 }
 
-/* ==== tarjeta mini proyecto (mobile-first) ==== */
-function MiniProjectCard({
-  iso, p, big = false, variant, full = false
-}: { iso: string; p: Project; big?: boolean; variant?: 'bar'; full?: boolean }) {
+/* ==== tarjeta proyecto ==== */
+function MiniProjectCard({ iso, p, big = false, variant, full = false, compact = false }: { iso: string; p: Project; big?: boolean; variant?: 'bar'; full?: boolean; compact?: boolean }) {
   const nav = useNavigate()
   const phase = phaseForDay(p, iso)
   const { style, dashed } = colorForProject(p)
-
-  // Tamaños responsivos
-  const size =
-    variant === 'bar'
-      ? 'px-2 py-2 md:px-2.5 md:py-2.5 flex items-center justify-between'
-      : big
-        ? 'p-2 md:p-2.5 flex flex-col justify-between min-h-[90px] md:min-h-[90px]'
-        : 'p-1.5 md:p-2 flex flex-col justify-between min-h-[50px] md:min-h-[50px]'
-
+  const size = variant === 'bar'
+    ? 'px-2 py-2 flex items-center justify-between'
+    : big
+      ? 'p-2 flex flex-col justify-between min-h-[90px]'
+      : 'p-1.5 flex flex-col justify-between min-h-[50px]'
   return (
     <button
       onClick={() => nav(`/project/${p.id}`)}
-      aria-label={`Abrir ${p.name || 'proyecto'}`}
       className={[
         full || variant === 'bar' ? 'rounded-lg' : 'rounded-md',
-        'border text-left transition',
-        'hover:brightness-95 active:brightness-90',
-        'focus:outline-none focus:ring-2 focus:ring-black/10',
-        'cursor-pointer',
+        'border text-left transition hover:brightness-95 active:brightness-90 focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer',
         dashed ? 'border-dashed' : '',
         size,
         full ? 'w-full h-full' : ''
       ].join(' ')}
       style={style as any}
-      title={p.name}
     >
       {variant === 'bar' ? (
         <>
-          <div className="text-[11px] md:text-[12px] leading-tight font-medium truncate pr-2">
-            {p.name || 'Sin título'}
-          </div>
-          <span
-            className={[
-              'inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur',
-              'w-4 h-4 md:w-5 md:h-5 text-[10px] md:text-[11px]',
-              dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70'
-            ].join(' ')}
-          >
-            {phase ?? ''}
-          </span>
+          <div className="text-[11px] leading-tight font-medium truncate pr-2">{p.name}</div>
+          <span className="inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur w-4 h-4 text-[10px]">{phase}</span>
         </>
+      ) : compact ? (
+        <div className="w-full h-full relative flex items-stretch">
+          <div className="flex-1 flex items-center justify-start pl-1">
+            <span className="font-semibold tracking-wide text-[10px] opacity-85">{initials(p.name)}</span>
+          </div>
+          <div className="absolute right-1 bottom-1">
+            <span className="inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur w-4 h-4 text-[9px]">{phase}</span>
+          </div>
+        </div>
       ) : (
         <>
-          <div className="text-[10px] md:text-[11px] leading-tight font-medium truncate line-clamp-1">
-            {p.name || 'Sin título'}
-          </div>
+          <div className="text-[10px] leading-tight font-medium truncate">{p.name}</div>
           <div className="flex items-center justify-end">
-            <span
-              className={[
-                'inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur',
-                'w-4 h-4 md:w-5 md:h-5 text-[9px] md:text-[10px]',
-                dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70'
-              ].join(' ')}
-            >
-              {phase ?? ''}
-            </span>
+            <span className="inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur w-4 h-4 text-[9px]">{phase}</span>
           </div>
         </>
       )}
@@ -361,33 +300,18 @@ function MiniProjectCard({
 function Legend({ projects }: { projects: Project[] }) {
   const nav = useNavigate()
   return (
-    <div className="mt-3 md:mt-4">
-      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1.5 md:mb-2">Proyectos del mes</div>
-      <div className="flex flex-wrap gap-1.5 md:gap-2">
-        {projects.map((p) => {
+    <div className="mt-3">
+      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Proyectos del mes</div>
+      <div className="flex flex-wrap gap-1.5">
+        {projects.map(p => {
           const { style, dashed } = colorForProject(p)
           return (
             <button
               key={p.id}
               onClick={() => nav(`/project/${p.id}`)}
               title={p.name}
-              className={[
-                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] md:text-xs transition',
-                'hover:brightness-95 active:brightness-90',
-                dashed ? 'border-dashed' : ''
-              ].join(' ')}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition hover:brightness-95 active:brightness-90 ${dashed ? 'border-dashed' : ''}`}
               style={style as any}
             >
               <span className="inline-block w-2.5 h-2.5 rounded-full border border-black/10 bg-white/50" />
-              <span className="truncate max-w-[140px] md:max-w-[200px]">{p.name || 'Sin título'}</span>
-              {!p.confirmed && <span className="ml-1 text-[10px] text-red-700">Pendiente</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ✅ exportación por defecto */
-export default CalendarPage
+              <span className="truncate max-w-[140px]
