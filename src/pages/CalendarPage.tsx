@@ -215,7 +215,7 @@ function CalendarPage() {
   )
 }
 
-/* ==== Grid del calendario completo ==== */
+/* ==== Grid del calendario (mobile-first) ==== */
 function CalendarGrid({
   items, monthStart, monthEnd, calStart, calEnd
 }: { items: Project[], monthStart: string, monthEnd: string, calStart: string, calEnd: string }) {
@@ -233,26 +233,25 @@ function CalendarGrid({
         const pDay = [...pConf.slice(0, 4), ...pPend.slice(0, Math.max(0, 4 - pConf.length))].slice(0, 4)
         const count = pDay.length
 
-        // Altura mínima adaptada
+        // Alturas mínimas pensadas para móvil (más generosas), con md: más compactas
         const dayMinH =
-          count === 0 ? 'min-h-[64px] md:min-h-[78px]' :
-          count === 1 ? 'min-h-[90px] md:min-h-[110px]' :
-                         'min-h-[110px] md:min-h-[120px]'
+          count === 0 ? 'min-h-[70px] md:min-h-[78px]' :
+          count === 1 ? 'min-h-[120px] md:min-h-[110px]' :
+          count === 2 ? 'min-h-[130px] md:min-h-[120px]' :
+                        'min-h-[150px] md:min-h-[130px]'
 
-        // Contenedor; si hay 2 => barras horizontales apiladas
-        const containerClass = count <= 1 ? 'h-full block' : 'h-full grid gap-1'
+        // Contenedor y plantilla: gap mayor en móvil para respirar; md: más compacto
+        const containerClass = count <= 1 ? 'h-full block' : 'h-full grid gap-[6px] md:gap-1'
         const gridTemplate =
           count === 2
-            ? 'grid-cols-1 auto-rows-[minmax(44px,1fr)]'
-            : count === 3
-              ? 'grid-cols-2 auto-rows-[minmax(44px,1fr)]'
-              : 'grid-cols-2 auto-rows-[minmax(44px,1fr)]' // 4 -> 2x2
+            ? 'grid-cols-1 auto-rows-[minmax(56px,1fr)] md:auto-rows-[minmax(44px,1fr)]'
+            : 'grid-cols-2 auto-rows-[minmax(56px,1fr)] md:auto-rows-[minmax(44px,1fr)]' // 3–4
 
         return (
           <div key={iso} className={dayMinH}>
             <div className={`h-full rounded-xl border ${inMonth ? 'bg-white' : 'bg-white/70'} shadow-sm p-1.5 md:p-2 relative`}>
-              {/* chip fecha */}
-              <div className="absolute -top-2 -left-2">
+              {/* chip fecha con z para no solapar títulos */}
+              <div className="absolute -top-2 -left-2 z-10">
                 <div className={`px-1.5 py-0.5 rounded-full text-[10px] md:text-[11px] border shadow-sm ${inMonth ? 'bg-white' : 'bg-gray-50'} text-gray-600`}>
                   {dayNum}
                 </div>
@@ -270,12 +269,12 @@ function CalendarGrid({
                   </div>
                 )}
 
-                {/* 2 proyectos: barras horizontales */}
+                {/* 2 proyectos: barras horizontales apiladas */}
                 {count === 2 && pDay.map((p, i) => (
                   <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} variant="bar" />
                 ))}
 
-                {/* 3-4 proyectos: grid 2x2 */}
+                {/* 3–4 proyectos: grid 2x2 */}
                 {count > 2 && pDay.map((p, i) => (
                   <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} />
                 ))}
@@ -288,7 +287,7 @@ function CalendarGrid({
   )
 }
 
-/* ==== mini tarjeta clicable ==== */
+/* ==== tarjeta mini proyecto (mobile-first) ==== */
 function MiniProjectCard({
   iso, p, big = false, variant, full = false
 }: { iso: string; p: Project; big?: boolean; variant?: 'bar'; full?: boolean }) {
@@ -296,19 +295,21 @@ function MiniProjectCard({
   const phase = phaseForDay(p, iso)
   const { style, dashed } = colorForProject(p)
 
+  // Tamaños responsivos
   const size =
     variant === 'bar'
       ? 'px-2 py-2 md:px-2.5 md:py-2.5 flex items-center justify-between'
       : big
-        ? 'p-1.5 md:p-2 flex flex-col justify-between min-h-[76px] md:min-h-[90px]'
-        : 'p-1 md:p-1.5 flex flex-col justify-between min-h-[42px] md:min-h-[50px]'
+        ? 'p-2 md:p-2.5 flex flex-col justify-between min-h-[90px] md:min-h-[90px]'
+        : 'p-1.5 md:p-2 flex flex-col justify-between min-h-[50px] md:min-h-[50px]'
 
   return (
     <button
       onClick={() => nav(`/project/${p.id}`)}
       aria-label={`Abrir ${p.name || 'proyecto'}`}
       className={[
-        'rounded-lg border text-left transition',
+        full || variant === 'bar' ? 'rounded-lg' : 'rounded-md',
+        'border text-left transition',
         'hover:brightness-95 active:brightness-90',
         'focus:outline-none focus:ring-2 focus:ring-black/10',
         'cursor-pointer',
@@ -327,7 +328,7 @@ function MiniProjectCard({
           <span
             className={[
               'inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur',
-              'text-[10px] md:text-[11px] w-5 h-5 md:w-6 md:h-6',
+              'w-4 h-4 md:w-5 md:h-5 text-[10px] md:text-[11px]',
               dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70'
             ].join(' ')}
           >
@@ -336,14 +337,14 @@ function MiniProjectCard({
         </>
       ) : (
         <>
-          <div className="text-[10px] md:text-[11px] leading-tight font-medium truncate">
+          <div className="text-[10px] md:text-[11px] leading-tight font-medium truncate line-clamp-1">
             {p.name || 'Sin título'}
           </div>
           <div className="flex items-center justify-end">
             <span
               className={[
                 'inline-flex items-center justify-center rounded-full border bg-white/60 backdrop-blur',
-                'text-[9px] md:text-[10px] w-4 h-4 md:w-5 md:h-5',
+                'w-4 h-4 md:w-5 md:h-5 text-[9px] md:text-[10px]',
                 dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70'
               ].join(' ')}
             >
