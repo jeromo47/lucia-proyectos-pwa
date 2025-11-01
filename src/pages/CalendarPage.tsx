@@ -4,7 +4,7 @@ import HeaderBar from '@/components/HeaderBar'
 import { getProjects, type Project } from '@/lib/repo'
 
 /* ============================
-   Fechas (UTC)
+   Utilidades de fecha (UTC)
    ============================ */
 const WEEK_START_MONDAY = true
 
@@ -17,10 +17,17 @@ function toISO(d: Date) {
     .toISOString()
     .slice(0, 10)
 }
-function todayISO() { const d = new Date(); return toISO(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))) }
-function addDaysISO(iso: string, days: number) { const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + days); return toISO(d) }
+function todayISO() {
+  const d = new Date()
+  return toISO(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())))
+}
+function addDaysISO(iso: string, days: number) {
+  const d = parseISO(iso)
+  d.setUTCDate(d.getUTCDate() + days)
+  return toISO(d)
+}
 function startOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))) }
-function endOfMonthISO(d: Date)   { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) }
+function endOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) }
 function dayOfWeekISO(iso: string) { return parseISO(iso).getUTCDay() }
 function startOfCalendarISO(monthStartISO: string) {
   const dow = dayOfWeekISO(monthStartISO)
@@ -33,14 +40,18 @@ function endOfCalendarISO(monthEndISO: string) {
   const shift = 6 - dow; return addDaysISO(monthEndISO, shift)
 }
 function eachDayISO(startISO: string, endISO: string) {
-  const out: string[] = []; let cur = startISO; while (cur <= endISO) { out.push(cur); cur = addDaysISO(cur, 1) } return out
+  const out: string[] = []
+  let cur = startISO
+  while (cur <= endISO) { out.push(cur); cur = addDaysISO(cur, 1) }
+  return out
 }
 
 /* ============================
-   Estética (colores & helpers)
+   Estética y helpers
    ============================ */
 function initials(name?: string, maxLetters = 3) {
-  const n = (name || '').trim(); if (!n) return ''
+  const n = (name || '').trim()
+  if (!n) return ''
   const parts = n.split(/\s+/).slice(0, 3)
   let chars = parts.map(w => w[0] ?? '').join('')
   if (parts.length === 1 && n.length >= 2) chars = n.slice(0, 2)
@@ -68,9 +79,9 @@ function colorForProject(p: Project) {
    ============================ */
 type PhaseKey = 'P'|'F'|'R'|null
 function phaseForDay(p: Project, iso: string): PhaseKey {
-  if (p.prepStart    && p.prepEnd    && p.prepStart    <= iso && iso <= p.prepEnd)    return 'P'
+  if (p.prepStart && p.prepEnd && p.prepStart <= iso && iso <= p.prepEnd) return 'P'
   if (p.fittingStart && p.fittingEnd && p.fittingStart <= iso && iso <= p.fittingEnd) return 'F'
-  if (p.rodajeStart  && p.rodajeEnd  && p.rodajeStart  <= iso && iso <= p.rodajeEnd)  return 'R'
+  if (p.rodajeStart && p.rodajeEnd && p.rodajeStart <= iso && iso <= p.rodajeEnd) return 'R'
   return null
 }
 function projectTotalRange(p: Project){ const start = p.prepStart ?? p.rodajeStart ?? null; const end = p.rodajeEnd ?? null; return { start, end } }
@@ -137,12 +148,19 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    const onClick = (e: MouseEvent | TouchEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) onClose() }
+    function onKey(e: KeyboardEvent){ if(e.key==='Escape') onClose() }
+    function onClick(e: MouseEvent | TouchEvent){
+      if(!boxRef.current) return
+      if(!boxRef.current.contains(e.target as Node)) onClose()
+    }
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onClick)
     document.addEventListener('touchstart', onClick)
-    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onClick); document.removeEventListener('touchstart', onClick) }
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('touchstart', onClick)
+    }
   }, [onClose])
 
   if(!state.project) return null
@@ -156,7 +174,9 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
         className="absolute pointer-events-auto translate-x-[-50%] translate-y-[-50%] rounded-xl border shadow-lg bg-white p-3 w-[240px] max-w-[85vw]"
         style={{ left: state.x, top: state.y }}
       >
-        <div className="text-sm font-medium truncate mb-2" title={p.name || 'Proyecto'}>{p.name || 'Proyecto'}</div>
+        <div className="text-sm font-medium truncate mb-2" title={p.name || 'Proyecto'}>
+          {p.name || 'Proyecto'}
+        </div>
         <div className="flex items-center justify-end gap-2">
           <button className="px-2 py-1 text-sm rounded-lg border hover:bg-gray-50" onClick={onClose}>Cerrar</button>
           <button className="px-2.5 py-1 text-sm rounded-lg border bg-black text-white hover:bg-black/90" onClick={() => nav(`/project/${p.id}`)}>Ver</button>
@@ -167,10 +187,7 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
 }
 
 /* ============================
-   Tarjeta compacta y estable
-   - Borde fijo (no cambia el layout)
-   - Título SIEMPRE arriba-izquierda
-   - Burbuja centrada
+   Tarjeta de proyecto
    ============================ */
 function MiniProjectCard({
   iso, p, variant, full=false, compact=false, onPreview
@@ -199,7 +216,6 @@ function MiniProjectCard({
       onClick={handleClick}
       className={[
         full || variant==='bar' ? 'rounded-lg' : 'rounded-md',
-        // Borde fijo 1.5px: no “salta” al foco/hover
         'relative border-[1.5px] text-left transition',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-black/15',
         dashed ? 'border-dashed' : '',
@@ -209,7 +225,6 @@ function MiniProjectCard({
       title={nameText}
       aria-label={`Abrir ${nameText}`}
     >
-      {/* Título SIEMPRE arriba-izq., si no cabe => iniciales */}
       <div
         ref={ref}
         className={`absolute top-1 left-1 pr-6 max-w-[80%] truncate pointer-events-none ${titleClass}`}
@@ -218,7 +233,6 @@ function MiniProjectCard({
         {visible ? nameText : initials(nameText)}
       </div>
 
-      {/* Burbuja de fase SIEMPRE centrada */}
       <span
         className={[
           'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
@@ -234,57 +248,81 @@ function MiniProjectCard({
 }
 
 /* ============================
-   Grid del calendario (estable)
+   Calendar Grid con altura uniforme por semana
    ============================ */
+function heightClassByCount(count: number) {
+  if (count <= 0) return 'min-h-[64px]'
+  if (count === 1) return 'min-h-[120px]'
+  if (count === 2) return 'min-h-[132px]'
+  return 'min-h-[148px]'
+}
+function chunkWeeks(days: string[]) {
+  const out: string[][] = []
+  for (let i = 0; i < days.length; i += 7) out.push(days.slice(i, i + 7))
+  return out
+}
+
 function CalendarGrid({
-  items, monthStart, monthEnd, calStart, calEnd, onPreview
+  items, monthStart, monthEnd, calStart, calEnd, onPreview, epoch = 0,
 }: {
   items: Project[]; monthStart: string; monthEnd: string; calStart: string; calEnd: string;
-  onPreview: (p:Project,x:number,y:number)=>void
-}){
-  const days = useMemo(()=>eachDayISO(calStart, calEnd),[calStart, calEnd])
+  onPreview: (p:Project,x:number,y:number)=>void; epoch?: number
+}) {
+  const days = useMemo(() => eachDayISO(calStart, calEnd), [calStart, calEnd])
+
+  // Precompute proyectos por día
+  const mapProjects = useMemo(() => {
+    const m = new Map<string, { list: Project[]; count: number }>()
+    for (const iso of days) {
+      const inRange = items.filter(p => dayInTotalRange(p, iso))
+      const conf = inRange.filter(p => p.confirmed)
+      const pend = inRange.filter(p => !p.confirmed)
+      const list = [...conf.slice(0, 4), ...pend.slice(0, Math.max(0, 4 - conf.length))].slice(0, 4)
+      m.set(iso, { list, count: list.length })
+    }
+    return m
+  }, [days, items])
+
+  const weeks = useMemo(() => chunkWeeks(days), [days])
 
   return (
-    <div className="calendar grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
-      {days.map(iso=>{
-        const inMonth = iso>=monthStart && iso<=monthEnd
-        const dayNum  = parseISO(iso).getUTCDate()
-
-        const pAll  = items.filter(p=>dayInTotalRange(p,iso))
-        const pConf = pAll.filter(p=>p.confirmed)
-        const pPend = pAll.filter(p=>!p.confirmed)
-
-        // Prioridad confirmados, máximo 4 visibles
-        const pDay  = [...pConf.slice(0,4), ...pPend.slice(0,Math.max(0,4-pConf.length))].slice(0,4)
-        const count = pDay.length
-
-        // Alturas fijas por densidad (no cambian al tocar)
-        const minH =
-          count===0 ? 'min-h-[64px]' :
-          count===1 ? 'min-h-[120px]' :
-          count===2 ? 'min-h-[132px]' : 'min-h-[148px]'
-
-        // 0/1: bloque entero; 2: barras apiladas; 3–4: 2×2
-        const layout = count<=1 ? 'h-full block' : `h-full grid gap-1 ${count===2?'grid-cols-1':'grid-cols-2'}`
+    <div key={epoch} className="calendar divide-y divide-transparent">
+      {weeks.map((week, wIdx) => {
+        const maxCount = Math.max(...week.map(d => mapProjects.get(d)?.count ?? 0))
+        const hClass = heightClassByCount(maxCount)
 
         return (
-          <div key={iso} className={minH}>
-            <div className={`h-full rounded-2xl border shadow-sm p-2 relative ${inMonth?'bg-white':'bg-white/80'}`}>
-              <div className="absolute -top-2 -left-2 z-10">
-                <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
-              </div>
+          <div key={wIdx} className="grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
+            {week.map(iso => {
+              const inMonth = iso >= monthStart && iso <= monthEnd
+              const dayNum  = parseISO(iso).getUTCDate()
+              const entry   = mapProjects.get(iso)!
+              const pDay    = entry.list
+              const count   = entry.count
 
-              <div className={layout}>
-                {count===0 && <div className="w-full h-full" />}
-                {count===1 && <MiniProjectCard iso={iso} p={pDay[0]} full onPreview={onPreview} />}
-                {count===2 && pDay.map((p,i)=>(
-                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} variant="bar" onPreview={onPreview}/>
-                ))}
-                {count>2 && pDay.map((p,i)=>(
-                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} compact onPreview={onPreview}/>
-                ))}
-              </div>
-            </div>
+              const layout = count <= 1 ? 'h-full block' : `h-full grid gap-1 ${count === 2 ? 'grid-cols-1' : 'grid-cols-2'}`
+
+              return (
+                <div key={iso} className={hClass}>
+                  <div className={`h-full rounded-2xl border shadow-sm p-2 relative ${inMonth ? 'bg-white' : 'bg-white/80'}`}>
+                    <div className="absolute -top-2 -left-2 z-10">
+                      <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
+                    </div>
+
+                    <div className={layout}>
+                      {count === 0 && <div className="w-full h-full" />}
+                      {count === 1 && <MiniProjectCard iso={iso} p={pDay[0]} full onPreview={onPreview} />}
+                      {count === 2 && pDay.map((p, i) => (
+                        <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} variant="bar" onPreview={onPreview} />
+                      ))}
+                      {count > 2 && pDay.map((p, i) => (
+                        <MiniProjectCard key={p.id + iso + i} iso={iso} p={p} compact onPreview={onPreview} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       })}
@@ -322,18 +360,18 @@ function Legend({ projects }: { projects: Project[] }) {
 }
 
 /* ============================
-   Página principal
+   Página
    ============================ */
 export default function CalendarPage() {
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonthISO(parseISO(todayISO())))
   const [items, setItems] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string|null>(null)
+  const [layoutEpoch, setLayoutEpoch] = useState(0)
   const preview = usePreview()
 
-  // Forzamos horizontal en móvil
   const isPortrait = useIsPortrait()
-  const isMobile   = useIsMobile()
+  const isMobile = useIsMobile()
   const lockVertical = isMobile && isPortrait
 
   useEffect(()=>{(async()=>{
@@ -342,10 +380,18 @@ export default function CalendarPage() {
     finally{ setLoading(false) }
   })()},[])
 
+  // Re-render al girar / cambiar viewport para recomponer alturas
+  useEffect(() => {
+    const bump = () => setLayoutEpoch(e => e + 1)
+    window.addEventListener('orientationchange', bump)
+    window.addEventListener('resize', bump)
+    return () => { window.removeEventListener('orientationchange', bump); window.removeEventListener('resize', bump) }
+  }, [])
+
   const monthStart = monthAnchor
-  const monthEnd   = endOfMonthISO(parseISO(monthStart))
-  const calStart   = startOfCalendarISO(monthStart)
-  const calEnd     = endOfCalendarISO(monthEnd)
+  const monthEnd = endOfMonthISO(parseISO(monthStart))
+  const calStart = startOfCalendarISO(monthStart)
+  const calEnd = endOfCalendarISO(monthEnd)
 
   const legendProjects = useMemo(
     () => items.filter(p => {
@@ -371,7 +417,7 @@ export default function CalendarPage() {
         </div>
 
         {loading && <div className="text-center text-gray-500 text-sm">Cargando…</div>}
-        {error   && <div className="text-center text-red-600 text-sm">{error}</div>}
+        {error && <div className="text-center text-red-600 text-sm">{error}</div>}
 
         {!loading && !error && (
           <>
@@ -388,15 +434,14 @@ export default function CalendarPage() {
                 calStart={calStart}
                 calEnd={calEnd}
                 onPreview={preview.open}
+                epoch={layoutEpoch}
               />
             </div>
-
             {legendProjects.length > 0 && <Legend projects={legendProjects} />}
           </>
         )}
       </div>
 
-      {/* Overlay “Poner en horizontal” en móvil vertical */}
       {lockVertical && (
         <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm text-gray-800">
           <svg width="66" height="66" viewBox="0 0 24 24" className="mb-3 opacity-80">
