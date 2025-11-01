@@ -48,3 +48,10 @@ textarea {
 button {
   @apply rounded-md px-3 py-2;
 }
+/* --- Calendario: comportamiento estable en iOS --- */
+.calendar {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
