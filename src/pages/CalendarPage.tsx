@@ -17,17 +17,10 @@ function toISO(d: Date) {
     .toISOString()
     .slice(0, 10)
 }
-function todayISO() {
-  const d = new Date()
-  return toISO(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())))
-}
-function addDaysISO(iso: string, days: number) {
-  const d = parseISO(iso)
-  d.setUTCDate(d.getUTCDate() + days)
-  return toISO(d)
-}
+function todayISO() { const d = new Date(); return toISO(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))) }
+function addDaysISO(iso: string, days: number) { const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + days); return toISO(d) }
 function startOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))) }
-function endOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) }
+function endOfMonthISO(d: Date)   { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) }
 function dayOfWeekISO(iso: string) { return parseISO(iso).getUTCDay() }
 function startOfCalendarISO(monthStartISO: string) {
   const dow = dayOfWeekISO(monthStartISO)
@@ -44,17 +37,15 @@ function eachDayISO(startISO: string, endISO: string) {
 }
 
 /* ============================
-   Colores y helpers
+   Estética (colores & helpers)
    ============================ */
 function initials(name?: string, maxLetters = 3) {
-  const n = (name || '').trim()
-  if (!n) return ''
+  const n = (name || '').trim(); if (!n) return ''
   const parts = n.split(/\s+/).slice(0, 3)
   let chars = parts.map(w => w[0] ?? '').join('')
   if (parts.length === 1 && n.length >= 2) chars = n.slice(0, 2)
   return chars.toUpperCase().slice(0, maxLetters)
 }
-
 const PASTEL = [
   { bg: 'hsl(190 80% 94%)', text: 'hsl(190 40% 26%)', border: 'hsl(190 45% 70%)' },
   { bg: 'hsl(280 70% 95%)', text: 'hsl(280 35% 30%)', border: 'hsl(280 45% 70%)' },
@@ -77,9 +68,9 @@ function colorForProject(p: Project) {
    ============================ */
 type PhaseKey = 'P'|'F'|'R'|null
 function phaseForDay(p: Project, iso: string): PhaseKey {
-  if (p.prepStart && p.prepEnd && p.prepStart <= iso && iso <= p.prepEnd) return 'P'
+  if (p.prepStart    && p.prepEnd    && p.prepStart    <= iso && iso <= p.prepEnd)    return 'P'
   if (p.fittingStart && p.fittingEnd && p.fittingStart <= iso && iso <= p.fittingEnd) return 'F'
-  if (p.rodajeStart && p.rodajeEnd && p.rodajeStart <= iso && iso <= p.rodajeEnd) return 'R'
+  if (p.rodajeStart  && p.rodajeEnd  && p.rodajeStart  <= iso && iso <= p.rodajeEnd)  return 'R'
   return null
 }
 function projectTotalRange(p: Project){ const start = p.prepStart ?? p.rodajeStart ?? null; const end = p.rodajeEnd ?? null; return { start, end } }
@@ -102,7 +93,6 @@ function useHideIfOverflow() {
   }, [])
   return { ref, visible }
 }
-
 function useIsPortrait() {
   const [portrait, setPortrait] = useState(false)
   useEffect(() => {
@@ -142,25 +132,17 @@ function usePreview() {
   const close = useCallback(() => setState({ project: null, x: 0, y: 0 }), [])
   return { state, open, close }
 }
-
 function Popover({ state, onClose }: { state: PreviewState, onClose: () => void }) {
   const nav = useNavigate()
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent){ if(e.key==='Escape') onClose() }
-    function onClick(e: MouseEvent | TouchEvent){
-      if(!boxRef.current) return
-      if(!boxRef.current.contains(e.target as Node)) onClose()
-    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onClick = (e: MouseEvent | TouchEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) onClose() }
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onClick)
     document.addEventListener('touchstart', onClick)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onClick)
-      document.removeEventListener('touchstart', onClick)
-    }
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onClick); document.removeEventListener('touchstart', onClick) }
   }, [onClose])
 
   if(!state.project) return null
@@ -174,9 +156,7 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
         className="absolute pointer-events-auto translate-x-[-50%] translate-y-[-50%] rounded-xl border shadow-lg bg-white p-3 w-[240px] max-w-[85vw]"
         style={{ left: state.x, top: state.y }}
       >
-        <div className="text-sm font-medium truncate mb-2" title={p.name || 'Proyecto'}>
-          {p.name || 'Proyecto'}
-        </div>
+        <div className="text-sm font-medium truncate mb-2" title={p.name || 'Proyecto'}>{p.name || 'Proyecto'}</div>
         <div className="flex items-center justify-end gap-2">
           <button className="px-2 py-1 text-sm rounded-lg border hover:bg-gray-50" onClick={onClose}>Cerrar</button>
           <button className="px-2.5 py-1 text-sm rounded-lg border bg-black text-white hover:bg-black/90" onClick={() => nav(`/project/${p.id}`)}>Ver</button>
@@ -187,8 +167,9 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
 }
 
 /* ============================
-   Tarjeta de proyecto
-   - Título SIEMPRE arriba-izquierda (absoluto)
+   Tarjeta compacta y estable
+   - Borde fijo (no cambia el layout)
+   - Título SIEMPRE arriba-izquierda
    - Burbuja centrada
    ============================ */
 function MiniProjectCard({
@@ -199,30 +180,28 @@ function MiniProjectCard({
 }){
   const phase = phaseForDay(p,iso)
   const { style, dashed } = colorForProject(p)
+  const { ref, visible } = useHideIfOverflow()
+  const nameText = p.name || 'Sin título'
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!onPreview) return
-    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    onPreview(p, cx, cy)
+    const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+    onPreview(p, r.left + r.width/2, r.top + r.height/2)
   }
 
-  const { ref, visible } = useHideIfOverflow()
-  const nameText = p.name || 'Sin título'
   const titleClass =
-    variant==='bar'
-      ? 'text-[10px] font-medium'
-      : compact
-        ? 'text-[10px] font-semibold tracking-wide'
-        : 'text-[11px] font-medium'
+    variant==='bar' ? 'text-[10px] font-medium' :
+    compact        ? 'text-[10px] font-semibold tracking-wide' :
+                     'text-[11px] font-medium'
 
   return (
     <button
       onClick={handleClick}
       className={[
         full || variant==='bar' ? 'rounded-lg' : 'rounded-md',
-        'relative border transition hover:brightness-95 active:brightness-90 focus:outline-none focus:ring-2 focus:ring-black/10',
+        // Borde fijo 1.5px: no “salta” al foco/hover
+        'relative border-[1.5px] text-left transition',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-black/15',
         dashed ? 'border-dashed' : '',
         full ? 'w-full h-full p-2.5' : 'p-2'
       ].join(' ')}
@@ -230,7 +209,7 @@ function MiniProjectCard({
       title={nameText}
       aria-label={`Abrir ${nameText}`}
     >
-      {/* Título SIEMPRE arriba-izquierda, ocultable si no cabe */}
+      {/* Título SIEMPRE arriba-izq., si no cabe => iniciales */}
       <div
         ref={ref}
         className={`absolute top-1 left-1 pr-6 max-w-[80%] truncate pointer-events-none ${titleClass}`}
@@ -239,7 +218,7 @@ function MiniProjectCard({
         {visible ? nameText : initials(nameText)}
       </div>
 
-      {/* Burbuja centrada */}
+      {/* Burbuja de fase SIEMPRE centrada */}
       <span
         className={[
           'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
@@ -255,36 +234,46 @@ function MiniProjectCard({
 }
 
 /* ============================
-   Grid del calendario
+   Grid del calendario (estable)
    ============================ */
 function CalendarGrid({
-  items,monthStart,monthEnd,calStart,calEnd,onPreview
-}:{items:Project[],monthStart:string,monthEnd:string,calStart:string,calEnd:string,onPreview:(p:Project,x:number,y:number)=>void}){
-  const days = useMemo(()=>eachDayISO(calStart,calEnd),[calStart,calEnd])
+  items, monthStart, monthEnd, calStart, calEnd, onPreview
+}: {
+  items: Project[]; monthStart: string; monthEnd: string; calStart: string; calEnd: string;
+  onPreview: (p:Project,x:number,y:number)=>void
+}){
+  const days = useMemo(()=>eachDayISO(calStart, calEnd),[calStart, calEnd])
+
   return (
-    <div className="grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
+    <div className="calendar grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
       {days.map(iso=>{
         const inMonth = iso>=monthStart && iso<=monthEnd
         const dayNum  = parseISO(iso).getUTCDate()
+
         const pAll  = items.filter(p=>dayInTotalRange(p,iso))
         const pConf = pAll.filter(p=>p.confirmed)
         const pPend = pAll.filter(p=>!p.confirmed)
+
+        // Prioridad confirmados, máximo 4 visibles
         const pDay  = [...pConf.slice(0,4), ...pPend.slice(0,Math.max(0,4-pConf.length))].slice(0,4)
         const count = pDay.length
 
+        // Alturas fijas por densidad (no cambian al tocar)
         const minH =
           count===0 ? 'min-h-[64px]' :
-          count===1 ? 'min-h-[118px]' :
-          count===2 ? 'min-h-[128px]' : 'min-h-[144px]'
+          count===1 ? 'min-h-[120px]' :
+          count===2 ? 'min-h-[132px]' : 'min-h-[148px]'
 
+        // 0/1: bloque entero; 2: barras apiladas; 3–4: 2×2
         const layout = count<=1 ? 'h-full block' : `h-full grid gap-1 ${count===2?'grid-cols-1':'grid-cols-2'}`
 
         return (
           <div key={iso} className={minH}>
-            <div className={`h-full rounded-xl border ${inMonth?'bg-white':'bg-white/80'} shadow-sm p-2 relative`}>
+            <div className={`h-full rounded-2xl border shadow-sm p-2 relative ${inMonth?'bg-white':'bg-white/80'}`}>
               <div className="absolute -top-2 -left-2 z-10">
                 <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
               </div>
+
               <div className={layout}>
                 {count===0 && <div className="w-full h-full" />}
                 {count===1 && <MiniProjectCard iso={iso} p={pDay[0]} full onPreview={onPreview} />}
@@ -342,8 +331,9 @@ export default function CalendarPage() {
   const [error, setError] = useState<string|null>(null)
   const preview = usePreview()
 
+  // Forzamos horizontal en móvil
   const isPortrait = useIsPortrait()
-  const isMobile = useIsMobile()
+  const isMobile   = useIsMobile()
   const lockVertical = isMobile && isPortrait
 
   useEffect(()=>{(async()=>{
@@ -353,9 +343,9 @@ export default function CalendarPage() {
   })()},[])
 
   const monthStart = monthAnchor
-  const monthEnd = endOfMonthISO(parseISO(monthStart))
-  const calStart = startOfCalendarISO(monthStart)
-  const calEnd   = endOfCalendarISO(monthEnd)
+  const monthEnd   = endOfMonthISO(parseISO(monthStart))
+  const calStart   = startOfCalendarISO(monthStart)
+  const calEnd     = endOfCalendarISO(monthEnd)
 
   const legendProjects = useMemo(
     () => items.filter(p => {
@@ -369,9 +359,9 @@ export default function CalendarPage() {
   function gotoMonth(delta:number){ const d=parseISO(monthStart); d.setUTCMonth(d.getUTCMonth()+delta,1); setMonthAnchor(startOfMonthISO(d)) }
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full flex flex-col relative select-none">
       <HeaderBar/>
-      <div className={`p-3 md:p-6 space-y-3 ${lockVertical ? 'pointer-events-none select-none blur-[1px]' : ''}`} aria-hidden={lockVertical}>
+      <div className={`p-3 md:p-6 space-y-3 ${lockVertical ? 'pointer-events-none blur-[1px]' : ''}`} aria-hidden={lockVertical}>
         <div className="flex items-center justify-center gap-2">
           <button onClick={()=>gotoMonth(-1)} className="px-2.5 py-1.5 rounded-lg border text-sm">←</button>
           <div className="text-base md:text-lg font-medium">
@@ -381,7 +371,7 @@ export default function CalendarPage() {
         </div>
 
         {loading && <div className="text-center text-gray-500 text-sm">Cargando…</div>}
-        {error && <div className="text-center text-red-600 text-sm">{error}</div>}
+        {error   && <div className="text-center text-red-600 text-sm">{error}</div>}
 
         {!loading && !error && (
           <>
@@ -400,21 +390,19 @@ export default function CalendarPage() {
                 onPreview={preview.open}
               />
             </div>
+
             {legendProjects.length > 0 && <Legend projects={legendProjects} />}
           </>
         )}
       </div>
 
-      {/* Overlay de orientación en móvil vertical */}
+      {/* Overlay “Poner en horizontal” en móvil vertical */}
       {lockVertical && (
-        <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-white/85 backdrop-blur-sm text-gray-800">
-          {/* Icono girar (simple SVG) */}
-          <svg width="64" height="64" viewBox="0 0 24 24" className="mb-3 opacity-80">
+        <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm text-gray-800">
+          <svg width="66" height="66" viewBox="0 0 24 24" className="mb-3 opacity-80">
             <rect x="3" y="6" width="18" height="12" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M8 3h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M20 8a4 4 0 0 1 0 8" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            <path d="M4 16a4 4 0 0 1 0-8" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-            <path d="M7 20h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M7 3h10M7 21h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M4 16a4 4 0 0 1 0-8M20 8a4 4 0 0 1 0 8" stroke="currentColor" strokeWidth="1.5" fill="none"/>
           </svg>
           <div className="text-sm font-medium">Poner en horizontal</div>
         </div>
