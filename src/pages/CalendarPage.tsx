@@ -307,16 +307,19 @@ function MiniProjectCard({
       title={p.name}
       aria-label={`Abrir ${p.name||'proyecto'}`}
     >
-      {/* Título */}
+      {/* TÍTULO / INICIALES */}
       {variant==='bar' ? (
         <TitleSmall text={p.name||'Sin título'} className="text-[10px] leading-tight font-medium pr-4" />
       ) : compact ? (
-        <div className="font-semibold tracking-wide text-[10px]">{initials(p.name)}</div>
+        // Iniciales fuera del flujo, en esquina superior-izquierda
+        <div className="absolute top-1 left-1 font-semibold tracking-wide text-[10px] pointer-events-none">
+          {initials(p.name)}
+        </div>
       ) : (
         <div className="text-[11px] leading-tight font-medium truncate pr-5">{p.name||'Sin título'}</div>
       )}
 
-      {/* Burbuja centrada */}
+      {/* BURBUJA DE FASE: SIEMPRE CENTRADA */}
       <span
         className={[
           'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
@@ -330,6 +333,7 @@ function MiniProjectCard({
     </button>
   )
 }
+
 
 /* ===== LEYENDA ===== */
 function Legend({ projects }: { projects: Project[] }) {
