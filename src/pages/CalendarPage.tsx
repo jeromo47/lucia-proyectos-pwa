@@ -3,22 +3,28 @@ import { useNavigate } from 'react-router-dom'
 import HeaderBar from '@/components/HeaderBar'
 import { getProjects, type Project } from '@/lib/repo'
 
+/* ============================
+   Fechas (UTC)
+   ============================ */
 const WEEK_START_MONDAY = true
 
-/* ===== fechas ===== */
-function todayISO() {
-  const d = new Date()
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString().slice(0, 10)
-}
 function parseISO(s: string) {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d))
 }
 function toISO(d: Date) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0, 10)
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+    .toISOString()
+    .slice(0, 10)
+}
+function todayISO() {
+  const d = new Date()
+  return toISO(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())))
 }
 function addDaysISO(iso: string, days: number) {
-  const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + days); return toISO(d)
+  const d = parseISO(iso)
+  d.setUTCDate(d.getUTCDate() + days)
+  return toISO(d)
 }
 function startOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))) }
 function endOfMonthISO(d: Date) { return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))) }
@@ -37,16 +43,18 @@ function eachDayISO(startISO: string, endISO: string) {
   const out: string[] = []; let cur = startISO; while (cur <= endISO) { out.push(cur); cur = addDaysISO(cur, 1) } return out
 }
 
-/* ===== helper iniciales ===== */
+/* ============================
+   Colores y helpers
+   ============================ */
 function initials(name?: string, maxLetters = 3) {
-  const n = (name || '').trim(); if (!n) return ''
+  const n = (name || '').trim()
+  if (!n) return ''
   const parts = n.split(/\s+/).slice(0, 3)
   let chars = parts.map(w => w[0] ?? '').join('')
   if (parts.length === 1 && n.length >= 2) chars = n.slice(0, 2)
   return chars.toUpperCase().slice(0, maxLetters)
 }
 
-/* ===== colores ===== */
 const PASTEL = [
   { bg: 'hsl(190 80% 94%)', text: 'hsl(190 40% 26%)', border: 'hsl(190 45% 70%)' },
   { bg: 'hsl(280 70% 95%)', text: 'hsl(280 35% 30%)', border: 'hsl(280 45% 70%)' },
@@ -64,7 +72,9 @@ function colorForProject(p: Project) {
   return { style: { backgroundColor: sw.bg, color: sw.text, borderColor: sw.border }, dashed: false }
 }
 
-/* ===== fases / rangos ===== */
+/* ============================
+   Fases y rangos
+   ============================ */
 type PhaseKey = 'P'|'F'|'R'|null
 function phaseForDay(p: Project, iso: string): PhaseKey {
   if (p.prepStart && p.prepEnd && p.prepStart <= iso && iso <= p.prepEnd) return 'P'
@@ -75,24 +85,50 @@ function phaseForDay(p: Project, iso: string): PhaseKey {
 function projectTotalRange(p: Project){ const start = p.prepStart ?? p.rodajeStart ?? null; const end = p.rodajeEnd ?? null; return { start, end } }
 function dayInTotalRange(p: Project, iso: string){ const {start,end}=projectTotalRange(p); return !!(start&&end&&start<=iso&&iso<=end) }
 
-/* ===== medir overflow (para ocultar título si no cabe) ===== */
+/* ============================
+   Hooks utilitarios
+   ============================ */
 function useHideIfOverflow() {
   const ref = useRef<HTMLDivElement | null>(null)
   const [visible, setVisible] = useState(true)
   useEffect(() => {
     if (!ref.current) return
     const el = ref.current
-    const ro = new ResizeObserver(() => {
-      if (!el) return
-      setVisible(el.scrollWidth <= el.clientWidth)
-    })
+    const update = () => setVisible(el.scrollWidth <= el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
   return { ref, visible }
 }
 
-/* ===== popover ===== */
+function useIsPortrait() {
+  const [portrait, setPortrait] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: portrait)')
+    const onChange = () => setPortrait(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    window.addEventListener('resize', onChange)
+    return () => { mq.removeEventListener('change', onChange); window.removeEventListener('resize', onChange) }
+  }, [])
+  return portrait
+}
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false)
+  useEffect(() => {
+    const onChange = () => setMobile(window.innerWidth < 768)
+    onChange()
+    window.addEventListener('resize', onChange)
+    return () => window.removeEventListener('resize', onChange)
+  }, [])
+  return mobile
+}
+
+/* ============================
+   Popover
+   ============================ */
 type PreviewState = { project: Project | null, x: number, y: number }
 function usePreview() {
   const [state, setState] = useState<PreviewState>({ project: null, x: 0, y: 0 })
@@ -113,7 +149,7 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent){ if(e.key==='Escape') onClose() }
-    function onClick(e: MouseEvent){
+    function onClick(e: MouseEvent | TouchEvent){
       if(!boxRef.current) return
       if(!boxRef.current.contains(e.target as Node)) onClose()
     }
@@ -150,13 +186,165 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
   )
 }
 
-/* ===== componente principal ===== */
-function CalendarPage() {
+/* ============================
+   Tarjeta de proyecto
+   - Título SIEMPRE arriba-izquierda (absoluto)
+   - Burbuja centrada
+   ============================ */
+function MiniProjectCard({
+  iso, p, variant, full=false, compact=false, onPreview
+}: {
+  iso:string; p:Project; variant?:'bar'; full?:boolean; compact?:boolean;
+  onPreview?:(p:Project,x:number,y:number)=>void
+}){
+  const phase = phaseForDay(p,iso)
+  const { style, dashed } = colorForProject(p)
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!onPreview) return
+    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    onPreview(p, cx, cy)
+  }
+
+  const { ref, visible } = useHideIfOverflow()
+  const nameText = p.name || 'Sin título'
+  const titleClass =
+    variant==='bar'
+      ? 'text-[10px] font-medium'
+      : compact
+        ? 'text-[10px] font-semibold tracking-wide'
+        : 'text-[11px] font-medium'
+
+  return (
+    <button
+      onClick={handleClick}
+      className={[
+        full || variant==='bar' ? 'rounded-lg' : 'rounded-md',
+        'relative border transition hover:brightness-95 active:brightness-90 focus:outline-none focus:ring-2 focus:ring-black/10',
+        dashed ? 'border-dashed' : '',
+        full ? 'w-full h-full p-2.5' : 'p-2'
+      ].join(' ')}
+      style={style as any}
+      title={nameText}
+      aria-label={`Abrir ${nameText}`}
+    >
+      {/* Título SIEMPRE arriba-izquierda, ocultable si no cabe */}
+      <div
+        ref={ref}
+        className={`absolute top-1 left-1 pr-6 max-w-[80%] truncate pointer-events-none ${titleClass}`}
+        title={nameText}
+      >
+        {visible ? nameText : initials(nameText)}
+      </div>
+
+      {/* Burbuja centrada */}
+      <span
+        className={[
+          'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+          'inline-flex items-center justify-center rounded-full border bg-white/85 shadow-sm',
+          compact || variant==='bar' ? 'w-4 h-4 text-[10px]' : 'w-5 h-5 text-[11px]',
+          dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70',
+        ].join(' ')}
+      >
+        {phase ?? ''}
+      </span>
+    </button>
+  )
+}
+
+/* ============================
+   Grid del calendario
+   ============================ */
+function CalendarGrid({
+  items,monthStart,monthEnd,calStart,calEnd,onPreview
+}:{items:Project[],monthStart:string,monthEnd:string,calStart:string,calEnd:string,onPreview:(p:Project,x:number,y:number)=>void}){
+  const days = useMemo(()=>eachDayISO(calStart,calEnd),[calStart,calEnd])
+  return (
+    <div className="grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
+      {days.map(iso=>{
+        const inMonth = iso>=monthStart && iso<=monthEnd
+        const dayNum  = parseISO(iso).getUTCDate()
+        const pAll  = items.filter(p=>dayInTotalRange(p,iso))
+        const pConf = pAll.filter(p=>p.confirmed)
+        const pPend = pAll.filter(p=>!p.confirmed)
+        const pDay  = [...pConf.slice(0,4), ...pPend.slice(0,Math.max(0,4-pConf.length))].slice(0,4)
+        const count = pDay.length
+
+        const minH =
+          count===0 ? 'min-h-[64px]' :
+          count===1 ? 'min-h-[118px]' :
+          count===2 ? 'min-h-[128px]' : 'min-h-[144px]'
+
+        const layout = count<=1 ? 'h-full block' : `h-full grid gap-1 ${count===2?'grid-cols-1':'grid-cols-2'}`
+
+        return (
+          <div key={iso} className={minH}>
+            <div className={`h-full rounded-xl border ${inMonth?'bg-white':'bg-white/80'} shadow-sm p-2 relative`}>
+              <div className="absolute -top-2 -left-2 z-10">
+                <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
+              </div>
+              <div className={layout}>
+                {count===0 && <div className="w-full h-full" />}
+                {count===1 && <MiniProjectCard iso={iso} p={pDay[0]} full onPreview={onPreview} />}
+                {count===2 && pDay.map((p,i)=>(
+                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} variant="bar" onPreview={onPreview}/>
+                ))}
+                {count>2 && pDay.map((p,i)=>(
+                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} compact onPreview={onPreview}/>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ============================
+   Leyenda
+   ============================ */
+function Legend({ projects }: { projects: Project[] }) {
+  const nav = useNavigate()
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Proyectos del mes</p>
+      <div className="flex flex-wrap gap-1.5">
+        {projects.map(p => {
+          const { style, dashed } = colorForProject(p)
+          return (
+            <button
+              key={p.id}
+              onClick={() => nav(`/project/${p.id}`)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${dashed ? 'border-dashed' : ''}`}
+              style={style as any}
+            >
+              <span className="inline-block w-2.5 h-2.5 rounded-full border border-black/10 bg-white/50" />
+              <span className="truncate max-w-[140px]">{p.name}</span>
+              {!p.confirmed && <span className="ml-1 text-[10px] text-red-700">Pendiente</span>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ============================
+   Página principal
+   ============================ */
+export default function CalendarPage() {
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonthISO(parseISO(todayISO())))
   const [items, setItems] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string|null>(null)
   const preview = usePreview()
+
+  const isPortrait = useIsPortrait()
+  const isMobile = useIsMobile()
+  const lockVertical = isMobile && isPortrait
 
   useEffect(()=>{(async()=>{
     try{ const data = await getProjects(); setItems(data); setError(null) }
@@ -181,9 +369,9 @@ function CalendarPage() {
   function gotoMonth(delta:number){ const d=parseISO(monthStart); d.setUTCMonth(d.getUTCMonth()+delta,1); setMonthAnchor(startOfMonthISO(d)) }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       <HeaderBar/>
-      <div className="p-3 md:p-6 space-y-3">
+      <div className={`p-3 md:p-6 space-y-3 ${lockVertical ? 'pointer-events-none select-none blur-[1px]' : ''}`} aria-hidden={lockVertical}>
         <div className="flex items-center justify-center gap-2">
           <button onClick={()=>gotoMonth(-1)} className="px-2.5 py-1.5 rounded-lg border text-sm">←</button>
           <div className="text-base md:text-lg font-medium">
@@ -216,150 +404,23 @@ function CalendarPage() {
           </>
         )}
       </div>
+
+      {/* Overlay de orientación en móvil vertical */}
+      {lockVertical && (
+        <div className="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-white/85 backdrop-blur-sm text-gray-800">
+          {/* Icono girar (simple SVG) */}
+          <svg width="64" height="64" viewBox="0 0 24 24" className="mb-3 opacity-80">
+            <rect x="3" y="6" width="18" height="12" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M8 3h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M20 8a4 4 0 0 1 0 8" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M4 16a4 4 0 0 1 0-8" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+            <path d="M7 20h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <div className="text-sm font-medium">Poner en horizontal</div>
+        </div>
+      )}
+
       <Popover state={preview.state} onClose={preview.close}/>
     </div>
   )
 }
-
-/* ===== grid ===== */
-function CalendarGrid({
-  items,monthStart,monthEnd,calStart,calEnd,onPreview
-}:{items:Project[],monthStart:string,monthEnd:string,calStart:string,calEnd:string,onPreview:(p:Project,x:number,y:number)=>void}){
-  const days = useMemo(()=>eachDayISO(calStart,calEnd),[calStart,calEnd])
-  return (
-    <div className="grid grid-cols-7 gap-[4px] md:gap-1 p-[4px] bg-gray-100">
-      {days.map(iso=>{
-        const inMonth = iso>=monthStart && iso<=monthEnd
-        const dayNum  = parseISO(iso).getUTCDate()
-        const pAll  = items.filter(p=>dayInTotalRange(p,iso))
-        const pConf = pAll.filter(p=>p.confirmed)
-        const pPend = pAll.filter(p=>!p.confirmed)
-        const pDay  = [...pConf.slice(0,4), ...pPend.slice(0,Math.max(0,4-pConf.length))].slice(0,4)
-        const count = pDay.length
-
-        const minH =
-          count===0 ? 'min-h-[64px]' :
-          count===1 ? 'min-h-[118px]' :
-          count===2 ? 'min-h-[128px]' : 'min-h-[144px]'
-
-        const layout = count<=1 ? 'h-full block' : `h-full grid gap-1 ${count===2?'grid-cols-1':'grid-cols-2'}`
-
-        return (
-          <div key={iso} className={minH}>
-            <div className={`h-full rounded-xl border ${inMonth?'bg-white':'bg-white/80'} shadow-sm p-2 relative`}>
-              <div className="absolute -top-2 -left-2 z-10">
-                <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
-              </div>
-              <div className={layout}>
-                {count===0 && <div className="w-full h-full" />}
-                {count===1 && <MiniProjectCard iso={iso} p={pDay[0]} big full onPreview={onPreview} />}
-                {count===2 && pDay.map((p,i)=>(
-                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} variant="bar" onPreview={onPreview}/>
-                ))}
-                {count>2 && pDay.map((p,i)=>(
-                  <MiniProjectCard key={p.id+iso+i} iso={iso} p={p} compact onPreview={onPreview}/>
-                ))}
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* ===== tarjeta ===== */
-function MiniProjectCard({
-  iso, p, big=false, variant, full=false, compact=false, onPreview
-}: {
-  iso:string; p:Project; big?:boolean; variant?:'bar'; full?:boolean; compact?:boolean;
-  onPreview?:(p:Project,x:number,y:number)=>void
-}){
-  const phase = phaseForDay(p,iso)
-  const { style, dashed } = colorForProject(p)
-
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!onPreview) return
-    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    onPreview(p, cx, cy)
-  }
-
-  const TitleSmall = ({ text, className='' }:{text?:string,className?:string}) => {
-    const { ref, visible } = useHideIfOverflow()
-    if (!text) return null
-    return visible ? (
-      <div ref={ref} className={`truncate ${className}`} title={text}>{text}</div>
-    ) : null
-  }
-
-  return (
-    <button
-      onClick={handleClick}
-      className={[
-        full || variant==='bar' ? 'rounded-lg' : 'rounded-md',
-        'relative border text-left transition hover:brightness-95 active:brightness-90 focus:outline-none focus:ring-2 focus:ring-black/10',
-        dashed ? 'border-dashed' : '',
-        full ? 'w-full h-full p-2.5' : 'p-2'
-      ].join(' ')}
-      style={style as any}
-      title={p.name}
-      aria-label={`Abrir ${p.name||'proyecto'}`}
-    >
-      {/* TÍTULO / INICIALES */}
-      {variant==='bar' ? (
-        <TitleSmall text={p.name||'Sin título'} className="text-[10px] leading-tight font-medium pr-4" />
-      ) : compact ? (
-        // Iniciales fuera del flujo, en esquina superior-izquierda
-        <div className="absolute top-1 left-1 font-semibold tracking-wide text-[10px] pointer-events-none">
-          {initials(p.name)}
-        </div>
-      ) : (
-        <div className="text-[11px] leading-tight font-medium truncate pr-5">{p.name||'Sin título'}</div>
-      )}
-
-      {/* BURBUJA DE FASE: SIEMPRE CENTRADA */}
-      <span
-        className={[
-          'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-          'inline-flex items-center justify-center rounded-full border bg-white/80 shadow-sm',
-          compact ? 'w-4 h-4 text-[10px]' : 'w-5 h-5 text-[11px]',
-          dashed ? 'border-red-400 text-red-700' : 'border-black/20 text-black/70',
-        ].join(' ')}
-      >
-        {phase ?? ''}
-      </span>
-    </button>
-  )
-}
-
-
-/* ===== LEYENDA ===== */
-function Legend({ projects }: { projects: Project[] }) {
-  const nav = useNavigate()
-  return (
-    <div className="mt-3">
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Proyectos del mes</p>
-      <div className="flex flex-wrap gap-1.5">
-        {projects.map(p => {
-          const { style, dashed } = colorForProject(p)
-          return (
-            <button
-              key={p.id}
-              onClick={() => nav(`/project/${p.id}`)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${dashed ? 'border-dashed' : ''}`}
-              style={style as any}
-            >
-              <span className="inline-block w-2.5 h-2.5 rounded-full border border-black/10 bg-white/50" />
-              <span className="truncate max-w-[140px]">{p.name}</span>
-              {!p.confirmed && <span className="ml-1 text-[10px] text-red-700">Pendiente</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-export default CalendarPage
