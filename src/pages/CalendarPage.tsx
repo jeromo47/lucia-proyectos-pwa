@@ -84,8 +84,7 @@ function useHideIfOverflow() {
     const el = ref.current
     const ro = new ResizeObserver(() => {
       if (!el) return
-      const fits = el.scrollWidth <= el.clientWidth
-      setVisible(fits)
+      setVisible(el.scrollWidth <= el.clientWidth)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -151,7 +150,7 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
   )
 }
 
-/* ===== componente ===== */
+/* ===== componente principal ===== */
 function CalendarPage() {
   const [monthAnchor, setMonthAnchor] = useState(() => startOfMonthISO(parseISO(todayISO())))
   const [items, setItems] = useState<Project[]>([])
@@ -170,12 +169,23 @@ function CalendarPage() {
   const calStart = startOfCalendarISO(monthStart)
   const calEnd   = endOfCalendarISO(monthEnd)
 
+  // proyectos que tienen presencia en el rango del calendario actual (para leyenda)
+  const legendProjects = useMemo(
+    () => items.filter(p => {
+      const rng = projectTotalRange(p)
+      if (!rng.start || !rng.end) return false
+      return !(rng.end < calStart || rng.start > calEnd)
+    }),
+    [items, calStart, calEnd]
+  )
+
   function gotoMonth(delta:number){ const d=parseISO(monthStart); d.setUTCMonth(d.getUTCMonth()+delta,1); setMonthAnchor(startOfMonthISO(d)) }
 
   return (
     <div className="h-full flex flex-col">
       <HeaderBar/>
       <div className="p-3 md:p-6 space-y-3">
+        {/* encabezado mes */}
         <div className="flex items-center justify-center gap-2">
           <button onClick={()=>gotoMonth(-1)} className="px-2.5 py-1.5 rounded-lg border text-sm">←</button>
           <div className="text-base md:text-lg font-medium">
@@ -188,21 +198,26 @@ function CalendarPage() {
         {error && <div className="text-center text-red-600 text-sm">{error}</div>}
 
         {!loading && !error && (
-          <div className="rounded-2xl border shadow-sm overflow-hidden">
-            <div className="grid grid-cols-7 bg-gray-50 text-[11px] text-gray-600">
-              {(WEEK_START_MONDAY?['L','M','X','J','V','S','D']:['D','L','M','X','J','V','S']).map(d=>(
-                <div key={d} className="px-2 py-2 border-b font-medium">{d}</div>
-              ))}
+          <>
+            <div className="rounded-2xl border shadow-sm overflow-hidden">
+              <div className="grid grid-cols-7 bg-gray-50 text-[11px] text-gray-600">
+                {(WEEK_START_MONDAY?['L','M','X','J','V','S','D']:['D','L','M','X','J','V','S']).map(d=>(
+                  <div key={d} className="px-2 py-2 border-b font-medium">{d}</div>
+                ))}
+              </div>
+              <CalendarGrid
+                items={items}
+                monthStart={monthStart}
+                monthEnd={monthEnd}
+                calStart={calStart}
+                calEnd={calEnd}
+                onPreview={preview.open}
+              />
             </div>
-            <CalendarGrid
-              items={items}
-              monthStart={monthStart}
-              monthEnd={monthEnd}
-              calStart={calStart}
-              calEnd={calEnd}
-              onPreview={preview.open}
-            />
-          </div>
+
+            {/* === LEYENDA === */}
+            {legendProjects.length > 0 && <Legend projects={legendProjects} />}
+          </>
         )}
       </div>
 
@@ -270,7 +285,7 @@ function MiniProjectCard({
   const phase = phaseForDay(p,iso)
   const { style, dashed } = colorForProject(p)
 
-  // Clic → centra popover en el propio bloque
+  // Clic → centra popover en el bloque
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!onPreview) return
     const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
@@ -286,7 +301,7 @@ function MiniProjectCard({
         ? 'p-2.5 flex flex-col justify-between min-h-[96px]'
         : 'p-2 flex flex-col justify-between min-h-[54px]'
 
-  // Título (ocultar si overflow)
+  // Título pequeño que se oculta si no cabe
   const TitleSmall = ({ text, className='' }:{text?:string,className?:string}) => {
     const { ref, visible } = useHideIfOverflow()
     if (!text) return null
@@ -311,7 +326,6 @@ function MiniProjectCard({
     >
       {variant==='bar' ? (
         <>
-          {/* fuente más pequeña; si no cabe → desaparece */}
           <TitleSmall text={p.name||'Sin título'} className="text-[10px] leading-tight font-medium pr-2 max-w-[75%]" />
           <span className={['inline-flex items-center justify-center rounded-full border bg-white/70',
             'w-4 h-4 text-[10px]', dashed?'border-red-400 text-red-700':'border-black/20 text-black/70'].join(' ')}>
@@ -342,6 +356,33 @@ function MiniProjectCard({
         </>
       )}
     </button>
+  )
+}
+
+/* ===== LEYENDA ===== */
+function Legend({ projects }: { projects: Project[] }) {
+  const nav = useNavigate()
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Proyectos del mes</p>
+      <div className="flex flex-wrap gap-1.5">
+        {projects.map(p => {
+          const { style, dashed } = colorForProject(p)
+          return (
+            <button
+              key={p.id}
+              onClick={() => nav(`/project/${p.id}`)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${dashed ? 'border-dashed' : ''}`}
+              style={style as any}
+            >
+              <span className="inline-block w-2.5 h-2.5 rounded-full border border-black/10 bg-white/50" />
+              <span className="truncate max-w-[140px]">{p.name}</span>
+              {!p.confirmed && <span className="ml-1 text-[10px] text-red-700">Pendiente</span>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
