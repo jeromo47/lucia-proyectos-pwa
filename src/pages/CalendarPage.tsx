@@ -75,12 +75,29 @@ function phaseForDay(p: Project, iso: string): PhaseKey {
 function projectTotalRange(p: Project){ const start = p.prepStart ?? p.rodajeStart ?? null; const end = p.rodajeEnd ?? null; return { start, end } }
 function dayInTotalRange(p: Project, iso: string){ const {start,end}=projectTotalRange(p); return !!(start&&end&&start<=iso&&iso<=end) }
 
-/* ===== popover (vista previa) ===== */
+/* ===== medir overflow (para ocultar título si no cabe) ===== */
+function useHideIfOverflow() {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    if (!ref.current) return
+    const el = ref.current
+    const ro = new ResizeObserver(() => {
+      if (!el) return
+      const fits = el.scrollWidth <= el.clientWidth
+      setVisible(fits)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return { ref, visible }
+}
+
+/* ===== popover ===== */
 type PreviewState = { project: Project | null, x: number, y: number }
 function usePreview() {
   const [state, setState] = useState<PreviewState>({ project: null, x: 0, y: 0 })
   const open = useCallback((project: Project, x: number, y: number) => {
-    // corrige posiciones para que no se salga por los bordes
     const margin = 12
     const vw = window.innerWidth, vh = window.innerHeight
     const px = Math.min(Math.max(margin, x), vw - margin)
@@ -93,13 +110,13 @@ function usePreview() {
 
 function Popover({ state, onClose }: { state: PreviewState, onClose: () => void }) {
   const nav = useNavigate()
-  const ref = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent){ if(e.key==='Escape') onClose() }
     function onClick(e: MouseEvent){
-      if(!ref.current) return
-      if(!ref.current.contains(e.target as Node)) onClose()
+      if(!boxRef.current) return
+      if(!boxRef.current.contains(e.target as Node)) onClose()
     }
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onClick)
@@ -116,30 +133,18 @@ function Popover({ state, onClose }: { state: PreviewState, onClose: () => void 
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
-      {/* fondo clicable */}
       <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] pointer-events-auto" />
-      {/* tarjeta */}
       <div
-        ref={ref}
-        className="absolute pointer-events-auto translate-x-[-50%] translate-y-[-100%] rounded-xl border shadow-lg bg-white p-3 w-[240px] max-w-[85vw]"
+        ref={boxRef}
+        className="absolute pointer-events-auto translate-x-[-50%] translate-y-[-50%] rounded-xl border shadow-lg bg-white p-3 w-[240px] max-w-[85vw]"
         style={{ left: state.x, top: state.y }}
       >
         <div className="text-sm font-medium truncate mb-2" title={p.name || 'Proyecto'}>
           {p.name || 'Proyecto'}
         </div>
         <div className="flex items-center justify-end gap-2">
-          <button
-            className="px-2 py-1 text-sm rounded-lg border hover:bg-gray-50"
-            onClick={onClose}
-          >
-            Cerrar
-          </button>
-          <button
-            className="px-2.5 py-1 text-sm rounded-lg border bg-black text-white hover:bg-black/90"
-            onClick={() => nav(`/project/${p.id}`)}
-          >
-            Ver
-          </button>
+          <button className="px-2 py-1 text-sm rounded-lg border hover:bg-gray-50" onClick={onClose}>Cerrar</button>
+          <button className="px-2.5 py-1 text-sm rounded-lg border bg-black text-white hover:bg-black/90" onClick={() => nav(`/project/${p.id}`)}>Ver</button>
         </div>
       </div>
     </div>
@@ -152,7 +157,6 @@ function CalendarPage() {
   const [items, setItems] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string|null>(null)
-
   const preview = usePreview()
 
   useEffect(()=>{(async()=>{
@@ -194,15 +198,14 @@ function CalendarPage() {
               items={items}
               monthStart={monthStart}
               monthEnd={monthEnd}
-              calStart={startOfCalendarISO(monthStart)}
-              calEnd={endOfCalendarISO(monthEnd)}
+              calStart={calStart}
+              calEnd={calEnd}
               onPreview={preview.open}
             />
           </div>
         )}
       </div>
 
-      {/* Popover de vista previa */}
       <Popover state={preview.state} onClose={preview.close}/>
     </div>
   )
@@ -235,12 +238,10 @@ function CalendarGrid({
         return (
           <div key={iso} className={minH}>
             <div className={`h-full rounded-xl border ${inMonth?'bg-white':'bg-white/80'} shadow-sm p-2 relative`}>
-              {/* Etiqueta día */}
               <div className="absolute -top-2 -left-2 z-10">
                 <div className="px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm bg-white text-gray-600">{dayNum}</div>
               </div>
 
-              {/* Contenido */}
               <div className={layout}>
                 {count===0 && <div className="w-full h-full" />}
                 {count===1 && <MiniProjectCard iso={iso} p={pDay[0]} big full onPreview={onPreview} />}
@@ -269,12 +270,13 @@ function MiniProjectCard({
   const phase = phaseForDay(p,iso)
   const { style, dashed } = colorForProject(p)
 
+  // Clic → centra popover en el propio bloque
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (onPreview) {
-      const x = e.clientX || (e.nativeEvent as any).clientX || window.innerWidth/2
-      const y = e.clientY || (e.nativeEvent as any).clientY || window.innerHeight/2
-      onPreview(p, x, y)
-    }
+    if (!onPreview) return
+    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    onPreview(p, cx, cy)
   }
 
   const base =
@@ -283,6 +285,15 @@ function MiniProjectCard({
       : big
         ? 'p-2.5 flex flex-col justify-between min-h-[96px]'
         : 'p-2 flex flex-col justify-between min-h-[54px]'
+
+  // Título (ocultar si overflow)
+  const TitleSmall = ({ text, className='' }:{text?:string,className?:string}) => {
+    const { ref, visible } = useHideIfOverflow()
+    if (!text) return null
+    return visible ? (
+      <div ref={ref} className={`truncate ${className}`} title={text}>{text}</div>
+    ) : null
+  }
 
   return (
     <button
@@ -300,7 +311,8 @@ function MiniProjectCard({
     >
       {variant==='bar' ? (
         <>
-          <div className="text-[11px] leading-tight font-medium truncate pr-2">{p.name||'Sin título'}</div>
+          {/* fuente más pequeña; si no cabe → desaparece */}
+          <TitleSmall text={p.name||'Sin título'} className="text-[10px] leading-tight font-medium pr-2 max-w-[75%]" />
           <span className={['inline-flex items-center justify-center rounded-full border bg-white/70',
             'w-4 h-4 text-[10px]', dashed?'border-red-400 text-red-700':'border-black/20 text-black/70'].join(' ')}>
             {phase??''}
