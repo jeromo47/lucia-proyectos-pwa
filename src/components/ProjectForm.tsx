@@ -1,7 +1,7 @@
 // src/components/ProjectForm.tsx
 import { useEffect, useMemo, useState } from 'react'
 import type { Project } from '@/lib/repo'
-import { createProject, updateProject, getProjects } from '@/lib/repo'
+import { upsertProject, type Project } from '@/lib/repo'
 
 // --- Helpers de fecha seguros (solo aceptan YYYY-MM-DD) ---
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
